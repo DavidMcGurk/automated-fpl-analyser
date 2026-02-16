@@ -1,0 +1,38 @@
+name: FPL Weekly Automation
+
+on:
+  schedule:
+    - cron: "0 12 * * 5"  # Friday 12:00 UTC
+  workflow_dispatch:
+
+jobs:
+  run-model:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Set up Python with uv
+        run: |
+          uv python install 3.14
+          uv venv
+
+      - name: Install dependencies from pyproject.toml
+        run: |
+          uv sync
+
+      - name: Run model
+        run: |
+          uv run python bin/run.py > tmp/output.txt
+
+      - name: Send email
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          uv run python bin/email_findings.py tmp/output.txt
