@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  run-model:
+  run-automation:
     runs-on: ubuntu-latest
 
     steps:
@@ -29,6 +29,7 @@ jobs:
 
       - name: Run model
         run: |
+          mkdir -p tmp
           uv run python bin/run.py > tmp/output.txt
 
       - name: Send email
