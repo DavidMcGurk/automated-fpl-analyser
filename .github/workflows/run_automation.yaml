@@ -35,5 +35,6 @@ jobs:
       - name: Send email
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
         run: |
           uv run python bin/email_findings.py tmp/output.txt
