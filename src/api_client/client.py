@@ -1,6 +1,6 @@
 from httpx import Client
 
-from src.models import SeasonEndedError
+from src.api_client.models import SeasonEndedError
 
 
 class ApiClient:

@@ -1,4 +1,2 @@
-
-
 class SeasonEndedError(Exception):
     pass
