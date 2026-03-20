@@ -4,9 +4,8 @@ from src.api_client.models import SeasonEndedError
 
 
 class ApiClient:
-    def __init__(self, user_id: int) -> None:
+    def __init__(self) -> None:
         self.client = Client()
-        self.user_id = user_id
 
     def get_general_info(self) -> dict:
         return self.client.get(url='https://fantasy.premierleague.com/api/bootstrap-static/').json()
@@ -20,8 +19,12 @@ class ApiClient:
 
         return sorted(remaining_fixtures, key=lambda x: x["event"])[0]["event"]
 
+    def get_number_of_players(self) -> int:
+        general_info = self.get_general_info()
+        return len(general_info["elements"])
+
     def get_player_info(self, player_id: int) -> dict:
         return self.client.get(f'https://fantasy.premierleague.com/api/element-summary/{player_id}/').json()
 
-    def get_user_summary(self) -> dict:
-        return self.client.get(f'https://fantasy.premierleague.com/api/entry/{self.user_id}/').json()
+    def get_user_summary(self, user_id: int) -> dict:
+        return self.client.get(f'https://fantasy.premierleague.com/api/entry/{user_id}/').json()
