@@ -21,11 +21,11 @@ jobs:
       - name: Set up Python with uv
         run: |
           uv python install 3.14
-          uv venv
 
       - name: Install dependencies from pyproject.toml
         run: |
           uv sync
+          uv pip install -e .
 
       - name: Run model
         run: |
