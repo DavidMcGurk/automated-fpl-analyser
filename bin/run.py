@@ -1,4 +1,4 @@
-from src.optimisation.predictor import Predictor
+# from src.optimisation.predictor import Predictor
 
 
 def main() -> None:
@@ -6,5 +6,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    predictor = Predictor()
-    predictor.load_player_data()
+    # predictor = Predictor()
+    # predictor.load_player_data()
+    main()
