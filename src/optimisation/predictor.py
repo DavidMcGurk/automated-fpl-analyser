@@ -1,5 +1,7 @@
 import json
 from pathlib import Path
+
+from src.models.pre_processing import PlayerAttributes, PrePlayer
 from src.api_client.client import ApiClient
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -13,16 +15,22 @@ class Predictor:
 
     def load_player_data(self) -> None:
         num_players = self.api_client.get_number_of_players()
+        general_info = self.api_client.get_general_info()
+
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
-        with self.output_path.open("a") as f:
+        with self.output_path.open("w") as f:
             for i in range(1, num_players + 1):
                 print(f"Loading data for player {i}")
 
+                player_element = general_info["elements"][i - 1]
+
+                position = self.api_client.get_player_position(player_element=player_element)
                 data = self.api_client.get_player_info(player_id=i)
 
-                record = {"player_id": i, "data": data}
+                attributes = PlayerAttributes(**player_element)
+                player = PrePlayer(player_id=i, position=position, attributes=attributes, **data)
 
-                f.write(json.dumps(record) + "\n")
+                f.write(json.dumps(player.model_dump_json()) + "\n")
 
     def model_xp(self) -> None:
         # Produce ML model of expected points (xP) / player for next <5 fixtures, from player data and upcoming fixtures

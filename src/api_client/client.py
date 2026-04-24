@@ -1,4 +1,8 @@
+from functools import cache
+
 from httpx import Client
+from src.models.post_processing import Position
+
 
 from src.models.errors import SeasonEndedError
 
@@ -9,6 +13,7 @@ class ApiClient:
     def __init__(self) -> None:
         self.client = Client()
 
+    @cache
     def get_general_info(self) -> dict:
         return self.client.get(url=f"{API_URL}/bootstrap-static/").json()
 
@@ -30,3 +35,7 @@ class ApiClient:
 
     def get_user_summary(self, user_id: int) -> dict:
         return self.client.get(f"{API_URL}/api/entry/{user_id}/").json()
+
+    def get_player_position(self, player_element: dict) -> Position:
+        element_type = player_element["element_type"]
+        return Position(element_type)
