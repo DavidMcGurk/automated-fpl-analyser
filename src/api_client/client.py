@@ -2,7 +2,7 @@ from httpx import Client
 
 from src.models.errors import SeasonEndedError
 
-API_URL = 'https://fantasy.premierleague.com/api'
+API_URL = "https://fantasy.premierleague.com/api"
 
 
 class ApiClient:
@@ -10,7 +10,7 @@ class ApiClient:
         self.client = Client()
 
     def get_general_info(self) -> dict:
-        return self.client.get(url=f'{API_URL}/bootstrap-static/').json()
+        return self.client.get(url=f"{API_URL}/bootstrap-static/").json()
 
     def get_current_gw(self) -> int:
         random_player_info = self.get_player_info(1)
@@ -26,7 +26,7 @@ class ApiClient:
         return len(general_info["elements"])
 
     def get_player_info(self, player_id: int) -> dict:
-        return self.client.get(f'{API_URL}/element-summary/{player_id}/').json()
+        return self.client.get(f"{API_URL}/element-summary/{player_id}/").json()
 
     def get_user_summary(self, user_id: int) -> dict:
-        return self.client.get(f'{API_URL}/api/entry/{user_id}/').json()
+        return self.client.get(f"{API_URL}/api/entry/{user_id}/").json()

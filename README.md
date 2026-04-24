@@ -6,12 +6,15 @@ This project is designed to run automated analysis on your FPL team and give you
 
 - Python 3.14
 - [UV](https://astral.sh/uv/)
+- [pre-commit](https://pre-commit.com/#install)
 
 ## Usage
 
 ### Setup
 
-The virtual environment can be set up using
+The dev environment can be set up using the following commands
 ```bash
 uv sync
+uv pip install -e .
+pre-commit install
 ```

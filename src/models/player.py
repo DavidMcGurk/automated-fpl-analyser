@@ -12,6 +12,7 @@ class Position(StrEnum):
 
 class Player(BaseModel):
     """Describes post-prediction player model, for de/serialisation"""
+
     player_id: int
     position: Position
     team: int

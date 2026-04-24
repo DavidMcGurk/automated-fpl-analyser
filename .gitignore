@@ -12,4 +12,5 @@ __pycache__
 *.pyc
 .DS_Store
 
+# Intellij
 .idea/
