@@ -1,6 +1,6 @@
 from httpx import Client
 
-from src.api_client.models import SeasonEndedError
+from src.models.errors import SeasonEndedError
 
 API_URL = 'https://fantasy.premierleague.com/api'
 
