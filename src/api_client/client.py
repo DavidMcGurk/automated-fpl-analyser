@@ -1,7 +1,7 @@
 from functools import cache
 
 from httpx import Client
-from src.models.post_processing import Position
+from src.models.post_prediction import Position
 from src.models.errors import SeasonEndedError
 
 API_URL = "https://fantasy.premierleague.com/api"

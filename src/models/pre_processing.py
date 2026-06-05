@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from src.models.post_processing import Position
+from src.models.post_prediction import Position
 from pydantic import BaseModel, Field
 
 
@@ -102,7 +102,7 @@ class PlayerAttributes(BaseModel):
     price_change_percent: str
     dreamteam_count: int
 
-    ep_next: str
+    ep_next: Optional[str]
     ep_this: str
     event_points: int
 
@@ -114,7 +114,7 @@ class PlayerAttributes(BaseModel):
     form: str
     in_dreamteam: bool
 
-    now_cost: int
+    now_cost: float
     points_per_game: str
 
     removed: bool
@@ -169,9 +169,7 @@ class PlayerAttributes(BaseModel):
 
     # --- Set pieces ---
     corners_and_indirect_freekicks_order: Optional[int]
-
     direct_freekicks_order: Optional[int]
-
     penalties_order: Optional[int]
 
     # --- Rankings ---
@@ -208,7 +206,7 @@ class PlayerAttributes(BaseModel):
     defensive_contribution_per_90: float
 
 
-class PrePlayer(BaseModel):
+class RawPlayer(BaseModel):
     """Describes pre-prediction player model, to be instantiated from API call inputs"""
 
     player_id: int

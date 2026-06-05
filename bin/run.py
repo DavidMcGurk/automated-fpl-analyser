@@ -7,6 +7,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     predictor = Predictor()
-    predictor.model_xp()
-    # predictor.load_player_data()
+    predictor.load_player_data()
     main()
