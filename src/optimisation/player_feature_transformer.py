@@ -13,7 +13,6 @@ class PlayerFeatureTransformer:
 
     @classmethod
     def transform(cls, player):
-
         base = cls._base_features(player)
 
         match player.position:
@@ -35,7 +34,6 @@ class PlayerFeatureTransformer:
 
     @classmethod
     def _goalkeeper(cls, player, base):
-
         attrs = player.attributes
         history = player.this_season_history
 
@@ -49,7 +47,6 @@ class PlayerFeatureTransformer:
                 return None
 
             saves = sum(m.saves for m in matches)
-
             return saves / (minutes / 90)
 
         return GoalkeeperFeatures(
@@ -64,7 +61,6 @@ class PlayerFeatureTransformer:
 
     @classmethod
     def _defender(cls, player, base):
-
         attrs = player.attributes
         history = player.this_season_history
 
@@ -93,7 +89,6 @@ class PlayerFeatureTransformer:
 
     @classmethod
     def _midfielder(cls, player, base):
-
         attrs = player.attributes
         history = player.this_season_history
 
@@ -126,12 +121,10 @@ class PlayerFeatureTransformer:
 
     @classmethod
     def _attacker(cls, player, base):
-
         attrs = player.attributes
         history = player.this_season_history
 
         goals_per_90 = attrs.goals_scored / (attrs.minutes / 90) if attrs.minutes else None
-
         assists_per_90 = attrs.assists / (attrs.minutes / 90) if attrs.minutes else None
 
         return AttackerFeatures(
@@ -164,7 +157,6 @@ class PlayerFeatureTransformer:
 
     @classmethod
     def _base_features(cls, player):
-
         attrs = player.attributes
         history = player.this_season_history
 
@@ -249,7 +241,6 @@ class PlayerFeatureTransformer:
             return None
 
         values = [cast(getattr(match, attr)) for match in matches]
-
         return mean(values)
 
     @staticmethod
@@ -262,8 +253,7 @@ class PlayerFeatureTransformer:
         if not fixtures:
             return None
 
-        adjusted = [fixture.difficulty - 0.5 if fixture.is_home else fixture.difficulty + 0.5 for fixture in fixtures]
-
+        adjusted = [fixture.difficulty - 0.3 if fixture.is_home else fixture.difficulty + 0.3 for fixture in fixtures]
         return mean(adjusted)
 
     @staticmethod
@@ -280,27 +270,23 @@ class PlayerFeatureTransformer:
 
     @staticmethod
     def _playing_probability(attrs):
-        current = attrs.chance_of_playing_this_round or 100
+        current = attrs.chance_of_playing_this_round or 0
         nxt = attrs.chance_of_playing_next_round or current
 
         return (0.65 * current + 0.35 * nxt) / 100
 
     @staticmethod
     def _historic_points_per_90(history):
-
         values = []
 
         for season in history:
-
             if season.minutes > 0:
-
                 values.append(season.total_points / (season.minutes / 90))
 
         return mean(values) if values else None
 
     @staticmethod
     def _historic_price_delta(history):
-
         if not history:
             return None
 
@@ -308,7 +294,6 @@ class PlayerFeatureTransformer:
 
     @staticmethod
     def _historic_minutes(history):
-
         if not history:
             return None
 
@@ -316,7 +301,6 @@ class PlayerFeatureTransformer:
 
     @staticmethod
     def _set_piece_score(attrs):
-
         scores = []
 
         for rank in (

@@ -39,13 +39,10 @@ class Predictor:
             for i in range(1, num_players + 1):
 
                 print(f"\nLoading player {i}")
-
                 player_element = general_info["elements"][i - 1]
 
                 position = self.api_client.get_player_position(player_element=player_element)
-
                 data = self.api_client.get_player_info(player_id=i)
-
                 attributes = PlayerAttributes(**player_element)
 
                 raw_player = RawPlayer(player_id=i, position=position, attributes=attributes, **data)
@@ -60,7 +57,6 @@ class Predictor:
                 features = PlayerFeatureTransformer.transform(raw_player)
 
                 handle = handles[position]
-
                 handle.write(json.dumps(features.model_dump()) + "\n")
 
         finally:
