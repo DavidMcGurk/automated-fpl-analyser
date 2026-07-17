@@ -4,19 +4,34 @@ from pathlib import Path
 from src.api_client.client import ApiClient
 from src.models.pre_processing import PlayerAttributes, RawPlayer
 from src.models.post_prediction import Position
+from src.models.training_examples import TrainingExample
 from src.optimisation.player_feature_transformer import PlayerFeatureTransformer
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 
-DATA_DIR = BASE_DIR / "data/player_features"
 
-GK_PATH = DATA_DIR / "goalkeepers.jsonl"
-DEF_PATH = DATA_DIR / "defenders.jsonl"
-MID_PATH = DATA_DIR / "midfielders.jsonl"
-ATT_PATH = DATA_DIR / "attackers.jsonl"
+FEATURE_DIR = BASE_DIR / "data/player_features"
+TRAINING_DIR = BASE_DIR / "data/training"
+
+
+FEATURE_PATHS = {
+    Position.GOALKEEPER: FEATURE_DIR / "goalkeepers.jsonl",
+    Position.DEFENDER: FEATURE_DIR / "defenders.jsonl",
+    Position.MIDFIELDER: FEATURE_DIR / "midfielders.jsonl",
+    Position.ATTACKER: FEATURE_DIR / "attackers.jsonl",
+}
+
+
+TRAINING_PATHS = {
+    Position.GOALKEEPER: TRAINING_DIR / "goalkeepers.jsonl",
+    Position.DEFENDER: TRAINING_DIR / "defenders.jsonl",
+    Position.MIDFIELDER: TRAINING_DIR / "midfielders.jsonl",
+    Position.ATTACKER: TRAINING_DIR / "attackers.jsonl",
+}
 
 
 class Predictor:
+
     def __init__(self) -> None:
         self.api_client = ApiClient()
 
@@ -24,28 +39,35 @@ class Predictor:
         num_players = self.api_client.get_number_of_players()
         general_info = self.api_client.get_general_info()
 
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        FEATURE_DIR.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
 
-        files = {
-            Position.GOALKEEPER: GK_PATH,
-            Position.DEFENDER: DEF_PATH,
-            Position.MIDFIELDER: MID_PATH,
-            Position.ATTACKER: ATT_PATH,
-        }
+        TRAINING_DIR.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
 
-        handles = {pos: path.open("w") for pos, path in files.items()}
+        feature_handles = {position: path.open("w") for position, path in FEATURE_PATHS.items()}
+        training_handles = {position: path.open("w") for position, path in TRAINING_PATHS.items()}
 
         try:
+
             for i in range(1, num_players + 1):
-
                 print(f"\nLoading player {i}")
-                player_element = general_info["elements"][i - 1]
 
-                position = self.api_client.get_player_position(player_element=player_element)
+                player_element = general_info["elements"][i - 1]
+                position = self.api_client.get_player_position(player_element)
                 data = self.api_client.get_player_info(player_id=i)
                 attributes = PlayerAttributes(**player_element)
 
-                raw_player = RawPlayer(player_id=i, position=position, attributes=attributes, **data)
+                raw_player = RawPlayer(
+                    player_id=i,
+                    position=position,
+                    attributes=attributes,
+                    **data,
+                )
 
                 print(
                     f"Parsed Player -> "
@@ -54,14 +76,23 @@ class Predictor:
                     f"position={raw_player.position}"
                 )
 
+                # Current inference features
                 features = PlayerFeatureTransformer.transform(raw_player)
+                feature_handles[position].write(json.dumps(features.model_dump()) + "\n")
 
-                handle = handles[position]
-                handle.write(json.dumps(features.model_dump()) + "\n")
+                # Historical training rows
+                examples = PlayerFeatureTransformer.transform_history(raw_player)
+
+                for example in examples:
+                    training_example = TrainingExample(**example)
+                    training_handles[position].write(training_example.model_dump_json() + "\n")
 
         finally:
-            for h in handles.values():
-                h.close()
+            for handle in feature_handles.values():
+                handle.close()
+
+            for handle in training_handles.values():
+                handle.close()
 
     def model_xp(self) -> None:
         # Produce ML model of expected points (xP) / player for next <5 fixtures, from player data and upcoming fixtures

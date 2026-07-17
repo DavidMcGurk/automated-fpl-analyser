@@ -13,67 +13,116 @@ class PlayerFeatureTransformer:
 
     @classmethod
     def transform(cls, player):
-        base = cls._base_features(player)
+        """
+        Generate current-week inference features.
+        Uses all currently available history.
+        """
+        history = player.this_season_history
+
+        return cls._transform_with_history(
+            player,
+            history,
+        )
+
+    @classmethod
+    def transform_history(cls, player):
+        """
+        Generate historical feature vectors.
+        Each output represents:
+        "What did we know before this gameweek?"
+        and should predict the following game's points.
+        """
+
+        examples = []
+        history = player.this_season_history
+
+        for gw in range(len(history) - 1):
+            available_history = history[: gw + 1]
+
+            features = cls._transform_with_history(
+                player,
+                available_history,
+            )
+
+            examples.append(
+                {
+                    "player_id": player.player_id,
+                    "position": player.position,
+                    "gameweek": gw + 1,
+                    "features": features,
+                    "target_points": history[gw + 1].total_points,
+                }
+            )
+
+        return examples
+
+    @classmethod
+    def _transform_with_history(cls, player, history):
+        base = cls._base_features(
+            player,
+            history,
+        )
 
         match player.position:
-
             case Position.GOALKEEPER:
-                return cls._goalkeeper(player, base)
+                return cls._goalkeeper(
+                    player,
+                    history,
+                    base,
+                )
 
             case Position.DEFENDER:
-                return cls._defender(player, base)
+                return cls._defender(
+                    player,
+                    history,
+                    base,
+                )
 
             case Position.MIDFIELDER:
-                return cls._midfielder(player, base)
+                return cls._midfielder(
+                    player,
+                    history,
+                    base,
+                )
 
             case Position.ATTACKER:
-                return cls._attacker(player, base)
+                return cls._attacker(
+                    player,
+                    history,
+                    base,
+                )
 
             case _:
                 raise ValueError(f"Unsupported position: {player.position}")
 
     @classmethod
-    def _goalkeeper(cls, player, base):
+    def _goalkeeper(cls, player, history, base):
         attrs = player.attributes
-        history = player.this_season_history
-
-        saves_last_3 = history[-3:]
-        saves_last_5 = history[-5:]
-
-        def saves_per_90(matches):
-            minutes = sum(m.minutes for m in matches)
-
-            if minutes == 0:
-                return None
-
-            saves = sum(m.saves for m in matches)
-            return saves / (minutes / 90)
 
         return GoalkeeperFeatures(
             **base,
             saves_per_90=attrs.saves_per_90,
             clean_sheets_per_90=attrs.clean_sheets_per_90,
-            saves_per_90_last_3=saves_per_90(saves_last_3),
-            saves_per_90_last_5=saves_per_90(saves_last_5),
+            saves_per_90_last_3=cls._rolling_saves_per_90(history, 3),
+            saves_per_90_last_5=cls._rolling_saves_per_90(history, 5),
             goals_conceded_per_90=attrs.goals_conceded_per_90,
             penalties_saved=attrs.penalties_saved,
         )
 
     @classmethod
-    def _defender(cls, player, base):
+    def _defender(cls, player, history, base):
         attrs = player.attributes
-        history = player.this_season_history
-
-        matches = history[-5:]
-
-        clean_sheet_rate = sum(m.clean_sheets for m in matches) / len(matches) if matches else None
 
         return DefenderFeatures(
             **base,
             clean_sheets_per_90=attrs.clean_sheets_per_90,
             expected_goals_conceded_per_90=attrs.expected_goals_conceded_per_90,
             defensive_contribution_per_90=attrs.defensive_contribution_per_90,
-            clean_sheet_rate_last_5=clean_sheet_rate,
+            clean_sheet_rate_last_5=cls._rolling_mean(
+                history,
+                5,
+                "clean_sheets",
+            ),
             expected_goal_involvements_per_90=attrs.expected_goal_involvements_per_90,
             avg_xgi_last_3=cls._rolling_mean(
                 history,
@@ -88,9 +137,8 @@ class PlayerFeatureTransformer:
         )
 
     @classmethod
-    def _midfielder(cls, player, base):
+    def _midfielder(cls, player, history, base):
         attrs = player.attributes
-        history = player.this_season_history
 
         return MidfielderFeatures(
             **base,
@@ -120,9 +168,8 @@ class PlayerFeatureTransformer:
         )
 
     @classmethod
-    def _attacker(cls, player, base):
+    def _attacker(cls, player, history, base):
         attrs = player.attributes
-        history = player.this_season_history
 
         goals_per_90 = attrs.goals_scored / (attrs.minutes / 90) if attrs.minutes else None
         assists_per_90 = attrs.assists / (attrs.minutes / 90) if attrs.minutes else None
@@ -156,9 +203,8 @@ class PlayerFeatureTransformer:
         )
 
     @classmethod
-    def _base_features(cls, player):
+    def _base_features(cls, player, history):
         attrs = player.attributes
-        history = player.this_season_history
 
         return dict(
             player_id=player.player_id,
@@ -183,44 +229,37 @@ class PlayerFeatureTransformer:
                 history,
                 3,
                 "total_points",
-                int,
             ),
             avg_points_last_5=cls._rolling_mean(
                 history,
                 5,
                 "total_points",
-                int,
             ),
             avg_minutes_last_3=cls._rolling_mean(
                 history,
                 3,
                 "minutes",
-                int,
             ),
             avg_minutes_last_5=cls._rolling_mean(
                 history,
                 5,
                 "minutes",
-                int,
             ),
             yellow_cards_last_5=cls._rolling_mean(
                 history,
                 5,
                 "yellow_cards",
-                int,
             ),
             red_cards_last_5=cls._rolling_mean(
                 history,
                 5,
                 "red_cards",
-                int,
             ),
             selected_by_percent=float(attrs.selected_by_percent),
             transfers_balance_last_5=cls._rolling_mean(
                 history,
                 5,
                 "transfers_balance",
-                int,
             ),
             now_cost=attrs.now_cost,
             avg_price_diff_historic=cls._historic_price_delta(player.previous_seasons_history),
@@ -229,19 +268,20 @@ class PlayerFeatureTransformer:
         )
 
     @staticmethod
-    def _rolling_mean(
-        history,
-        n: int,
-        attr: str,
-        cast=float,
-    ):
-        matches = history[-n:]
+    def _rolling_mean(history, n: int, attribute: str):
+        values = [float(getattr(x, attribute)) for x in history[-n:]]
 
-        if not matches:
+        return mean(values) if values else None
+
+    @staticmethod
+    def _rolling_saves_per_90(history, n):
+        matches = history[-n:]
+        minutes = sum(x.minutes for x in matches)
+
+        if minutes == 0:
             return None
 
-        values = [cast(getattr(match, attr)) for match in matches]
-        return mean(values)
+        return sum(x.saves for x in matches) / (minutes / 90)
 
     @staticmethod
     def _fixture_difficulty(
