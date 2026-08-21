@@ -25,8 +25,6 @@ class Predictor:
         training_by_position: dict[Position, list[dict]] = {p: [] for p in Position}
 
         for i in range(1, num_players + 1):
-            print(f"\nLoading player {i}")
-
             player_element = general_info["elements"][i - 1]
             position = self.api_client.get_player_position(player_element)
             data = self.api_client.get_player_info(player_id=i)
@@ -39,13 +37,6 @@ class Predictor:
                 **data,
             )
 
-            print(
-                f"Parsed Player -> "
-                f"id={raw_player.player_id}, "
-                f"name={raw_player.attributes.web_name}, "
-                f"position={raw_player.position}"
-            )
-
             # Current inference features
             features = PlayerFeatureTransformer.transform(raw_player)
             features_by_position[position].append(features.model_dump())
@@ -56,6 +47,8 @@ class Predictor:
             for example in examples:
                 training_example = TrainingExample(**example)
                 training_by_position[position].append(json.loads(training_example.model_dump_json()))
+
+        print(f"Loaded {num_players} players from FPL API")
 
         # Upsert to MongoDB
         for position in Position:
