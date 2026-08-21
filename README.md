@@ -61,7 +61,7 @@ uv run python bin/run.py
 
 ### Historical data
 
-Historical data from the [vaastav/Fantasy-Premier-League](https://github.com/vaastav/Fantasy-Premier-League) repository is stored in `data/historical/` (9 seasons, 2016-17 through 2024-25). This is converted to training examples and combined with current-season data for GP model training.
+Training data from 10 seasons (2016-17 through 2025-26) is stored as JSONL files in `data/training/`. Historical seasons (2016-17 through 2024-25) were converted from the [vaastav/Fantasy-Premier-League](https://github.com/vaastav/Fantasy-Premier-League) repository using `historical_converter.py`. Current-season data is fetched and converted automatically by `load_player_data()`.
 
 ## Project structure
 
@@ -84,8 +84,7 @@ bin/
 ├── optimise.py         # CLI tool for team optimisation
 └── email_findings.py   # Email results via Resend API
 data/
-├── historical/         # Raw CSVs from vaastav (9 seasons)
-├── training/           # Converted training JSONL per season
+├── training/           # Training JSONL per season (10 seasons)
 ├── player_features/    # Current player feature vectors
 └── predictions/        # xP predictions per position
 ```
