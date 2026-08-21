@@ -123,9 +123,28 @@ class Predictor:
         gp.train()
         gp.predict()
 
-    def optimise_team(self) -> None:
-        # Evaluate xP of users current team
-        # For each non-selected player with > avg xp, see if they can be included in team + if that improves things
-        # (Subsequently) consider pairs of transfers which can most improve xP
-        # Relevant constraints: position rules, player prices, club max players, budget (sale prices / player), etc.
-        pass
+    def optimise_team(self, user_id: int, max_transfers: int = 2) -> None:
+        """Optimise a user's team by suggesting transfers that maximise xP."""
+        from src.optimisation.team_optimiser import TeamOptimiser
+
+        optimiser = TeamOptimiser()
+        result = optimiser.optimise(user_id, max_transfers=max_transfers)
+
+        print(f"\n{'=' * 60}")
+        print(f"Team Optimisation Results for User {user_id}")
+        print(f"{'=' * 60}")
+        print(f"Current squad xP: {result.current_squad_xp}")
+        print(f"Optimised squad xP: {result.optimised_squad_xp}")
+        print(f"Transfers used: {result.transfers_used}")
+        print(f"Point hit: {result.point_hit}")
+        print(f"Net improvement: {result.optimised_squad_xp - result.current_squad_xp - result.point_hit:+.2f}")
+
+        if result.suggestions:
+            print("\nSuggested transfers:")
+            for s in result.suggestions:
+                print(f"  {s.player_out_name} (ID: {s.player_out}) -> " f"{s.player_in_name} (ID: {s.player_in})")
+                print(f"    xP gain: {s.xP_gain:+.2f}, " f"cost change: {s.cost_change:+.2f}")
+        else:
+            print("\nNo beneficial transfers found.")
+
+        print(f"{'=' * 60}")
