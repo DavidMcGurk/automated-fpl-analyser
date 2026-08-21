@@ -116,10 +116,12 @@ class Predictor:
         return f"{end_year - 1}_{str(end_year)[-2:]}"
 
     def model_xp(self) -> None:
-        # Produce ML model of expected points (xP) / player for next <5 fixtures, from player data and upcoming fixtures
-        # Write to folder in data, describing player id, xP / player for remaining up to 5 fixtures,
-        # + other rel. info (e.g. position)
-        pass
+        """Train GP models and predict xP for all current players."""
+        from src.optimisation.gp_model import GPModel
+
+        gp = GPModel()
+        gp.train()
+        gp.predict()
 
     def optimise_team(self) -> None:
         # Evaluate xP of users current team
