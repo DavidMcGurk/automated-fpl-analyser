@@ -85,7 +85,7 @@ uv run python bin/validate.py --model svgp --kernel matern32
 
 ### Historical data
 
-Training data from 10 seasons (2016-17 through 2025-26) is stored in MongoDB. Historical seasons (2016-17 through 2024-25) were converted from the [vaastav/Fantasy-Premier-League](https://github.com/vaastav/Fantasy-Premier-League) repository using `historical_converter.py`. Current-season data is fetched and converted automatically by `load_player_data()`.
+Training data from 10 seasons (2016-17 through 2025-26) is stored in MongoDB. Historical seasons (2016-17 through 2024-25) were converted from the [vaastav/Fantasy-Premier-League](https://github.com/vaastav/Fantasy-Premier-League) repository using `historical_converter.py`. Current-season data is fetched and converted automatically by `load_player_data()` on each weekly run, with new gameweeks added to MongoDB as the season progresses.
 
 ## Project structure
 
