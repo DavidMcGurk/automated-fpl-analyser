@@ -11,7 +11,7 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 
 
 FEATURE_DIR = BASE_DIR / "data/player_features"
-TRAINING_DIR = BASE_DIR / "data/training"
+TRAINING_BASE_DIR = BASE_DIR / "data/training"
 
 
 FEATURE_PATHS = {
@@ -22,12 +22,14 @@ FEATURE_PATHS = {
 }
 
 
-TRAINING_PATHS = {
-    Position.GOALKEEPER: TRAINING_DIR / "goalkeepers.jsonl",
-    Position.DEFENDER: TRAINING_DIR / "defenders.jsonl",
-    Position.MIDFIELDER: TRAINING_DIR / "midfielders.jsonl",
-    Position.ATTACKER: TRAINING_DIR / "attackers.jsonl",
-}
+def _training_paths(season: str) -> dict[Position, Path]:
+    training_dir = TRAINING_BASE_DIR / season
+    return {
+        Position.GOALKEEPER: training_dir / "goalkeepers.jsonl",
+        Position.DEFENDER: training_dir / "defenders.jsonl",
+        Position.MIDFIELDER: training_dir / "midfielders.jsonl",
+        Position.ATTACKER: training_dir / "attackers.jsonl",
+    }
 
 
 class Predictor:
@@ -39,18 +41,22 @@ class Predictor:
         num_players = self.api_client.get_number_of_players()
         general_info = self.api_client.get_general_info()
 
+        season = self._derive_season_name(general_info)
+        training_paths = _training_paths(season)
+        training_dir = TRAINING_BASE_DIR / season
+
         FEATURE_DIR.mkdir(
             parents=True,
             exist_ok=True,
         )
 
-        TRAINING_DIR.mkdir(
+        training_dir.mkdir(
             parents=True,
             exist_ok=True,
         )
 
         feature_handles = {position: path.open("w") for position, path in FEATURE_PATHS.items()}
-        training_handles = {position: path.open("w") for position, path in TRAINING_PATHS.items()}
+        training_handles = {position: path.open("w") for position, path in training_paths.items()}
 
         try:
 
@@ -93,6 +99,21 @@ class Predictor:
 
             for handle in training_handles.values():
                 handle.close()
+
+        print(f"\nTraining data written to: {training_dir}")
+
+    @staticmethod
+    def _derive_season_name(general_info: dict) -> str:
+        """Derive a season folder name (e.g. '2026_27') from the API events."""
+        events = general_info.get("events", [])
+        if not events:
+            return "current"
+
+        last_event = events[-1]
+        deadline = last_event.get("deadline_time", "")
+        end_year = int(deadline[:4])
+
+        return f"{end_year - 1}_{str(end_year)[-2:]}"
 
     def model_xp(self) -> None:
         # Produce ML model of expected points (xP) / player for next <5 fixtures, from player data and upcoming fixtures
