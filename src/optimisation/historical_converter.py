@@ -6,6 +6,7 @@ position-specific JSONL training files matching the TrainingExample schema.
 """
 
 import csv
+import json
 import statistics
 from pathlib import Path
 
@@ -14,7 +15,6 @@ from src.models.training_examples import TrainingExample
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 HISTORICAL_DIR = BASE_DIR / "data/historical"
-TRAINING_BASE_DIR = BASE_DIR / "data/training"
 
 POSITION_NAMES = {
     Position.GOALKEEPER: "goalkeepers",
@@ -356,11 +356,16 @@ def _set_piece_score(attrs: dict) -> float | None:
     return statistics.mean(scores) if scores else None
 
 
-def convert_all_historical() -> None:
-    """Convert all seasons in data/historical/ into TrainingExample JSONL files."""
+def convert_all_historical(store=None) -> None:
+    """Convert all seasons in data/historical/ and store in MongoDB."""
     if not HISTORICAL_DIR.exists():
         print("No historical data directory found")
         return
+
+    if store is None:
+        from src.storage.mongo_client import MongoStore
+
+        store = MongoStore()
 
     seasons = sorted(d.name for d in HISTORICAL_DIR.iterdir() if d.is_dir())
 
@@ -370,22 +375,21 @@ def convert_all_historical() -> None:
 
         # Convert season name (e.g. "2024-25" -> "2024_25")
         season_folder = season.replace("-", "_")
-        output_dir = TRAINING_BASE_DIR / season_folder
-        output_dir.mkdir(parents=True, exist_ok=True)
 
         examples_by_position = _convert_season(season_dir)
 
         total = 0
         for position, examples in examples_by_position.items():
-            output_path = output_dir / f"{POSITION_NAMES[position]}.jsonl"
-            with output_path.open("w") as f:
-                for example in examples:
-                    training_example = TrainingExample(**example)
-                    f.write(training_example.model_dump_json() + "\n")
+            # Build full training example dicts for MongoDB
+            records = []
+            for example in examples:
+                training_example = TrainingExample(**example)
+                records.append(json.loads(training_example.model_dump_json()))
+            count = store.upsert_training_examples(position, season_folder, records)
             total += len(examples)
-            print(f"  {POSITION_NAMES[position]}: {len(examples)} examples")
+            print(f"  {POSITION_NAMES[position]}: {len(examples)} examples (upserted: {count})")
 
-        print(f"  Total: {total} examples -> {output_dir}")
+        print(f"  Total: {total} examples stored for {season_folder}")
 
 
 if __name__ == "__main__":

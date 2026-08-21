@@ -4,7 +4,7 @@ This project fetches player data from the Fantasy Premier League (FPL) API, mode
 
 ## How it works
 
-1. **Data ingestion** — Fetches current player stats and fixtures from the FPL API
+1. **Data ingestion** — Fetches current player stats and fixtures from the FPL API, stores in MongoDB
 2. **Training** — Trains per-position Gaussian Process models (gpytorch) on historical data (10 seasons, ~245K examples)
 3. **Prediction** — Generates xP predictions for all current players
 4. **Optimisation** — Fetches your squad and suggests transfers to maximise xP, respecting FPL constraints (budget, position limits, club limits, transfer hits)
@@ -14,6 +14,7 @@ This project fetches player data from the Fantasy Premier League (FPL) API, mode
 - Python 3.14
 - [uv](https://astral.sh/uv/)
 - [pre-commit](https://pre-commit.com/#install) (for development)
+- A MongoDB instance (e.g. [MongoDB Atlas](https://www.mongodb.com/atlas) free tier)
 
 ## Setup
 
@@ -21,6 +22,20 @@ This project fetches player data from the Fantasy Premier League (FPL) API, mode
 uv sync
 uv pip install -e .
 pre-commit install  # optional, for development
+```
+
+Set the `MONGODB_URI` environment variable to your MongoDB connection string:
+
+```bash
+export MONGODB_URI="mongodb+srv://<user>:<password>@<cluster>.mongodb.net/"
+```
+
+### One-time data migration
+
+If you have existing JSONL training data (from `data/training/`), migrate it to MongoDB:
+
+```bash
+uv run python bin/migrate.py
 ```
 
 ## Usage
@@ -34,6 +49,7 @@ To use it:
 1. Fork this repository
 2. Add the following secrets in **Settings → Secrets and variables → Actions**:
    - `FPL_USER_ID` — Your FPL user ID (find it in your team page URL, e.g. `fantasy.premierleague.com/entry/3846224`)
+   - `MONGODB_URI` — Your MongoDB connection string
    - `RESEND_API_KEY` — API key from [Resend](https://resend.com) for email delivery
    - `EMAIL_ADDRESS` — The email address to send results to
 3. The workflow will run automatically on schedule, or you can trigger it manually via **Actions → Run workflow**
@@ -43,6 +59,7 @@ To use it:
 **Optimise your team** (uses existing predictions):
 
 ```bash
+export MONGODB_URI="your_connection_string"
 uv run python bin/optimise.py <your_fpl_user_id>
 ```
 
@@ -56,12 +73,19 @@ uv run python bin/optimise.py <your_fpl_user_id> --train
 
 ```bash
 export FPL_USER_ID=your_fpl_user_id
+export MONGODB_URI=your_connection_string
 uv run python bin/run.py
+```
+
+**Validate GP model hyperparameters:**
+
+```bash
+uv run python bin/validate.py --model svgp --kernel matern32
 ```
 
 ### Historical data
 
-Training data from 10 seasons (2016-17 through 2025-26) is stored as JSONL files in `data/training/`. Historical seasons (2016-17 through 2024-25) were converted from the [vaastav/Fantasy-Premier-League](https://github.com/vaastav/Fantasy-Premier-League) repository using `historical_converter.py`. Current-season data is fetched and converted automatically by `load_player_data()`.
+Training data from 10 seasons (2016-17 through 2025-26) is stored in MongoDB. Historical seasons (2016-17 through 2024-25) were converted from the [vaastav/Fantasy-Premier-League](https://github.com/vaastav/Fantasy-Premier-League) repository using `historical_converter.py`. Current-season data is fetched and converted automatically by `load_player_data()`.
 
 ## Project structure
 
@@ -73,6 +97,8 @@ src/
 │   ├── post_prediction.py   # Prediction output models
 │   ├── player_features.py   # Position-specific feature models
 │   └── squad.py             # Squad and transfer suggestion models
+├── storage/
+│   └── mongo_client.py      # MongoDB storage layer
 └── optimisation/
     ├── predictor.py             # Main pipeline orchestrator
     ├── gp_model.py              # Gaussian Process xP model (gpytorch)
@@ -82,9 +108,7 @@ src/
 bin/
 ├── run.py              # Weekly automation entry point
 ├── optimise.py         # CLI tool for team optimisation
+├── validate.py         # GP model validation experiments
+├── migrate.py          # One-time JSONL → MongoDB migration
 └── email_findings.py   # Email results via Resend API
-data/
-├── training/           # Training JSONL per season (10 seasons)
-├── player_features/    # Current player feature vectors
-└── predictions/        # xP predictions per position
 ```

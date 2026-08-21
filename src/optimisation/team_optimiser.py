@@ -1,8 +1,6 @@
 """Team optimisation: suggests transfers to maximise xP subject to FPL constraints."""
 
-import json
 from itertools import combinations
-from pathlib import Path
 
 from src.api_client.client import ApiClient
 from src.models.post_prediction import Position
@@ -12,9 +10,7 @@ from src.models.squad import (
     SquadPick,
     TransferSuggestion,
 )
-
-BASE_DIR = Path(__file__).resolve().parents[2]
-PREDICTION_DIR = BASE_DIR / "data/predictions"
+from src.storage.mongo_client import MongoStore
 
 POSITION_NAMES = {
     Position.GOALKEEPER: "goalkeepers",
@@ -30,8 +26,9 @@ POINT_HIT_PER_TRANSFER = 4
 class TeamOptimiser:
     """Optimises a user's FPL squad by suggesting transfers that maximise xP."""
 
-    def __init__(self) -> None:
+    def __init__(self, store: MongoStore | None = None) -> None:
         self.api_client = ApiClient()
+        self.store = store or MongoStore()
         self.predictions: dict[int, dict] = {}
         self.player_names: dict[int, str] = {}
         self.player_positions: dict[int, Position] = {}
@@ -41,18 +38,8 @@ class TeamOptimiser:
         self._load_player_info()
 
     def _load_predictions(self) -> None:
-        """Load xP predictions for all players."""
-        for position in Position:
-            path = PREDICTION_DIR / f"{POSITION_NAMES[position]}.jsonl"
-            if not path.exists():
-                continue
-
-            with path.open() as f:
-                for line in f:
-                    if not line.strip():
-                        continue
-                    pred = json.loads(line)
-                    self.predictions[pred["player_id"]] = pred
+        """Load xP predictions for all players from MongoDB."""
+        self.predictions = self.store.load_all_predictions()
 
     def _load_player_info(self) -> None:
         """Load player names, positions, teams, and prices from the API."""

@@ -30,6 +30,7 @@ jobs:
       - name: Run model
         env:
           FPL_USER_ID: ${{ secrets.FPL_USER_ID }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
         run: |
           mkdir -p tmp
           uv run python bin/run.py > tmp/output.txt

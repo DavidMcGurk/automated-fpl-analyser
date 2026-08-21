@@ -10,9 +10,6 @@ Supports two model types:
 Kernel can be configured: "rbf", "matern32", or "matern52".
 """
 
-import json
-from pathlib import Path
-
 import torch
 import gpytorch
 
@@ -23,11 +20,7 @@ from src.models.player_features import (
     GoalkeeperFeatures,
     MidfielderFeatures,
 )
-
-BASE_DIR = Path(__file__).resolve().parents[2]
-TRAINING_BASE_DIR = BASE_DIR / "data/training"
-FEATURE_DIR = BASE_DIR / "data/player_features"
-PREDICTION_DIR = BASE_DIR / "data/predictions"
+from src.storage.mongo_client import MongoStore
 
 POSITION_NAMES = {
     Position.GOALKEEPER: "goalkeepers",
@@ -119,10 +112,12 @@ class GPModel:
         model_type: str = "exact",
         kernel_name: str = "rbf",
         normalize_target: bool = True,
+        store: MongoStore | None = None,
     ) -> None:
         self.model_type = model_type
         self.kernel_name = kernel_name
         self.normalize_target = normalize_target
+        self.store = store or MongoStore()
 
         self.models: dict[Position, torch.nn.Module] = {}
         self.likelihoods: dict[Position, torch.nn.Module] = {}
@@ -140,7 +135,7 @@ class GPModel:
                      If None, uses all available seasons.
         """
         if seasons is None:
-            seasons = sorted(d.name for d in TRAINING_BASE_DIR.iterdir() if d.is_dir())
+            seasons = self.store.list_seasons()
 
         for position in Position:
             print(f"\n=== Training {POSITION_NAMES[position]} GP ({self.model_type}, {self.kernel_name}) ===")
@@ -223,43 +218,27 @@ class GPModel:
         return results
 
     def predict(self) -> None:
-        """Predict xP for all current players and write to data/predictions/."""
-        PREDICTION_DIR.mkdir(parents=True, exist_ok=True)
-
+        """Predict xP for all current players and store in MongoDB."""
         for position in Position:
             if position not in self.models:
                 print(f"No model for {POSITION_NAMES[position]}, skipping prediction")
                 continue
 
-            feature_path = FEATURE_DIR / f"{POSITION_NAMES[position]}.jsonl"
-            if not feature_path.exists():
+            features = self.store.load_player_features(position)
+            if not features:
                 print(f"No features for {POSITION_NAMES[position]}, skipping")
                 continue
 
-            predictions = self._predict_position(position, feature_path)
+            predictions = self._predict_position(position, features)
+            count = self.store.upsert_predictions(position, predictions)
 
-            output_path = PREDICTION_DIR / f"{POSITION_NAMES[position]}.jsonl"
-            with output_path.open("w") as f:
-                for pred in predictions:
-                    f.write(json.dumps(pred) + "\n")
-
-            print(f"  {POSITION_NAMES[position]}: {len(predictions)} predictions -> {output_path}")
+            print(f"  {POSITION_NAMES[position]}: {count} predictions stored in MongoDB")
 
     def _load_training_data(
         self, position: Position, seasons: list[str]
     ) -> tuple[torch.Tensor, torch.Tensor, list[str]]:
-        """Load and prepare training data for a given position."""
-        examples: list[dict] = []
-
-        for season in seasons:
-            path = TRAINING_BASE_DIR / season / f"{POSITION_NAMES[position]}.jsonl"
-            if not path.exists():
-                continue
-
-            with path.open() as f:
-                for line in f:
-                    if line.strip():
-                        examples.append(json.loads(line))
+        """Load and prepare training data for a given position from MongoDB."""
+        examples = self.store.load_training_examples(position, seasons)
 
         if not examples:
             return torch.empty(0), torch.empty(0), []
@@ -389,7 +368,7 @@ class GPModel:
         self.models[position] = model
         self.likelihoods[position] = likelihood
 
-    def _predict_position(self, position: Position, feature_path: Path) -> list[dict]:
+    def _predict_position(self, position: Position, features: list[dict]) -> list[dict]:
         """Predict xP for all players at a given position."""
         model = self.models[position]
         likelihood = self.likelihoods[position]
@@ -401,37 +380,32 @@ class GPModel:
 
         predictions = []
 
-        with feature_path.open() as f:
-            for line in f:
-                if not line.strip():
-                    continue
+        for features_dict in features:
+            player_id = features_dict.get("player_id")
 
-                features_dict = json.loads(line)
-                player_id = features_dict.get("player_id")
+            row = []
+            for col in columns:
+                val = features_dict.get(col)
+                row.append(0.0 if val is None else float(val))
 
-                row = []
-                for col in columns:
-                    val = features_dict.get(col)
-                    row.append(0.0 if val is None else float(val))
+            x = torch.tensor([row], dtype=torch.float32)
+            x = (x - feat_mean) / feat_std
 
-                x = torch.tensor([row], dtype=torch.float32)
-                x = (x - feat_mean) / feat_std
+            with torch.no_grad(), gpytorch.settings.fast_pred_var():
+                pred_dist = likelihood(model(x))
+                pred_mean = pred_dist.mean.item()
+                variance = pred_dist.variance.item()
 
-                with torch.no_grad(), gpytorch.settings.fast_pred_var():
-                    pred_dist = likelihood(model(x))
-                    pred_mean = pred_dist.mean.item()
-                    variance = pred_dist.variance.item()
+            # Denormalize prediction
+            pred_mean = pred_mean * t_std + t_mean
 
-                # Denormalize prediction
-                pred_mean = pred_mean * t_std + t_mean
-
-                predictions.append(
-                    {
-                        "player_id": player_id,
-                        "position": position.value,
-                        "xp": round(pred_mean, 2),
-                        "xp_uncertainty": round((variance**0.5) * t_std, 2),
-                    }
-                )
+            predictions.append(
+                {
+                    "player_id": player_id,
+                    "position": position.value,
+                    "xp": round(pred_mean, 2),
+                    "xp_uncertainty": round((variance**0.5) * t_std, 2),
+                }
+            )
 
         return predictions

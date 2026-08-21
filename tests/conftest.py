@@ -8,6 +8,19 @@ import pytest
 BASE_DIR = Path(__file__).resolve().parents[1]
 
 
+def _make_mock_store():
+    """Create a MagicMock that behaves like a MongoStore without connecting."""
+    store = MagicMock()
+    store.list_seasons.return_value = []
+    store.load_training_examples.return_value = []
+    store.load_player_features.return_value = []
+    store.load_all_predictions.return_value = {}
+    store.upsert_training_examples.return_value = 0
+    store.upsert_player_features.return_value = 0
+    store.upsert_predictions.return_value = 0
+    return store
+
+
 def _make_player_attributes(**overrides):
     """Create a minimal PlayerAttributes dict that passes Pydantic validation."""
     defaults = {
@@ -225,3 +238,9 @@ def mock_api_client():
     """A mocked ApiClient that doesn't make real HTTP calls."""
     client = MagicMock()
     return client
+
+
+@pytest.fixture
+def mock_store():
+    """A mocked MongoStore that doesn't connect to MongoDB."""
+    return _make_mock_store()
