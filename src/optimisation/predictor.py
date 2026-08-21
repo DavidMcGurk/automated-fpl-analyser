@@ -1,106 +1,73 @@
 import json
-from pathlib import Path
 
 from src.api_client.client import ApiClient
 from src.models.pre_processing import PlayerAttributes, RawPlayer
 from src.models.post_prediction import Position
 from src.models.training_examples import TrainingExample
 from src.optimisation.player_feature_transformer import PlayerFeatureTransformer
-
-BASE_DIR = Path(__file__).resolve().parents[2]
-
-
-FEATURE_DIR = BASE_DIR / "data/player_features"
-TRAINING_BASE_DIR = BASE_DIR / "data/training"
-
-
-FEATURE_PATHS = {
-    Position.GOALKEEPER: FEATURE_DIR / "goalkeepers.jsonl",
-    Position.DEFENDER: FEATURE_DIR / "defenders.jsonl",
-    Position.MIDFIELDER: FEATURE_DIR / "midfielders.jsonl",
-    Position.ATTACKER: FEATURE_DIR / "attackers.jsonl",
-}
-
-
-def _training_paths(season: str) -> dict[Position, Path]:
-    training_dir = TRAINING_BASE_DIR / season
-    return {
-        Position.GOALKEEPER: training_dir / "goalkeepers.jsonl",
-        Position.DEFENDER: training_dir / "defenders.jsonl",
-        Position.MIDFIELDER: training_dir / "midfielders.jsonl",
-        Position.ATTACKER: training_dir / "attackers.jsonl",
-    }
+from src.storage.mongo_client import MongoStore, POSITION_NAMES
 
 
 class Predictor:
 
-    def __init__(self) -> None:
+    def __init__(self, store: MongoStore | None = None) -> None:
         self.api_client = ApiClient()
+        self.store = store or MongoStore()
 
     def load_player_data(self) -> None:
         num_players = self.api_client.get_number_of_players()
         general_info = self.api_client.get_general_info()
 
         season = self._derive_season_name(general_info)
-        training_paths = _training_paths(season)
-        training_dir = TRAINING_BASE_DIR / season
 
-        FEATURE_DIR.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
+        # Accumulate features and training examples per position
+        features_by_position: dict[Position, list[dict]] = {p: [] for p in Position}
+        training_by_position: dict[Position, list[dict]] = {p: [] for p in Position}
 
-        training_dir.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
+        for i in range(1, num_players + 1):
+            print(f"\nLoading player {i}")
 
-        feature_handles = {position: path.open("w") for position, path in FEATURE_PATHS.items()}
-        training_handles = {position: path.open("w") for position, path in training_paths.items()}
+            player_element = general_info["elements"][i - 1]
+            position = self.api_client.get_player_position(player_element)
+            data = self.api_client.get_player_info(player_id=i)
+            attributes = PlayerAttributes(**player_element)
 
-        try:
+            raw_player = RawPlayer(
+                player_id=i,
+                position=position,
+                attributes=attributes,
+                **data,
+            )
 
-            for i in range(1, num_players + 1):
-                print(f"\nLoading player {i}")
+            print(
+                f"Parsed Player -> "
+                f"id={raw_player.player_id}, "
+                f"name={raw_player.attributes.web_name}, "
+                f"position={raw_player.position}"
+            )
 
-                player_element = general_info["elements"][i - 1]
-                position = self.api_client.get_player_position(player_element)
-                data = self.api_client.get_player_info(player_id=i)
-                attributes = PlayerAttributes(**player_element)
+            # Current inference features
+            features = PlayerFeatureTransformer.transform(raw_player)
+            features_by_position[position].append(features.model_dump())
 
-                raw_player = RawPlayer(
-                    player_id=i,
-                    position=position,
-                    attributes=attributes,
-                    **data,
-                )
+            # Historical training rows
+            examples = PlayerFeatureTransformer.transform_history(raw_player)
 
-                print(
-                    f"Parsed Player -> "
-                    f"id={raw_player.player_id}, "
-                    f"name={raw_player.attributes.web_name}, "
-                    f"position={raw_player.position}"
-                )
+            for example in examples:
+                training_example = TrainingExample(**example)
+                training_by_position[position].append(json.loads(training_example.model_dump_json()))
 
-                # Current inference features
-                features = PlayerFeatureTransformer.transform(raw_player)
-                feature_handles[position].write(json.dumps(features.model_dump()) + "\n")
+        # Upsert to MongoDB
+        for position in Position:
+            feat_count = self.store.upsert_player_features(position, features_by_position[position])
+            if feat_count:
+                print(f"  {POSITION_NAMES[position]}: {feat_count} features stored")
 
-                # Historical training rows
-                examples = PlayerFeatureTransformer.transform_history(raw_player)
+            train_count = self.store.upsert_training_examples(position, season, training_by_position[position])
+            if train_count:
+                print(f"  {POSITION_NAMES[position]}: {train_count} training examples stored for {season}")
 
-                for example in examples:
-                    training_example = TrainingExample(**example)
-                    training_handles[position].write(training_example.model_dump_json() + "\n")
-
-        finally:
-            for handle in feature_handles.values():
-                handle.close()
-
-            for handle in training_handles.values():
-                handle.close()
-
-        print(f"\nTraining data written to: {training_dir}")
+        print(f"\nTraining data stored in MongoDB for season: {season}")
 
     @staticmethod
     def _derive_season_name(general_info: dict) -> str:
@@ -119,7 +86,7 @@ class Predictor:
         """Train GP models and predict xP for all current players."""
         from src.optimisation.gp_model import GPModel
 
-        gp = GPModel()
+        gp = GPModel(store=self.store)
         gp.train()
         gp.predict()
 
@@ -127,7 +94,7 @@ class Predictor:
         """Optimise a user's team by suggesting transfers that maximise xP."""
         from src.optimisation.team_optimiser import TeamOptimiser
 
-        optimiser = TeamOptimiser()
+        optimiser = TeamOptimiser(store=self.store)
         result = optimiser.optimise(user_id, max_transfers=max_transfers)
 
         print(f"\n{'=' * 60}")

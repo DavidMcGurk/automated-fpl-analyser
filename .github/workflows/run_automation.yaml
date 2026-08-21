@@ -4,6 +4,15 @@ on:
   schedule:
     - cron: "0 12 * * 5"  # Friday 12:00 UTC
   workflow_dispatch:
+    inputs:
+      fpl_user_id:
+        description: "Your FPL user ID (leave blank to use the default from secrets)"
+        required: false
+        default: ""
+      email_address:
+        description: "Email address to send results to (leave blank to use the default from secrets)"
+        required: false
+        default: ""
 
 jobs:
   run-automation:
@@ -29,7 +38,8 @@ jobs:
 
       - name: Run model
         env:
-          FPL_USER_ID: ${{ secrets.FPL_USER_ID }}
+          FPL_USER_ID: ${{ github.event.inputs.fpl_user_id || secrets.FPL_USER_ID }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
         run: |
           mkdir -p tmp
           uv run python bin/run.py > tmp/output.txt
@@ -37,6 +47,6 @@ jobs:
       - name: Send email
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
+          EMAIL_ADDRESS: ${{ github.event.inputs.email_address || secrets.EMAIL_ADDRESS }}
         run: |
           uv run python bin/email_findings.py tmp/output.txt

@@ -6,7 +6,12 @@ Runs the full FPL analysis pipeline:
 3. Optimise the user's team using transfer suggestions
 
 The FPL user ID is read from the FPL_USER_ID environment variable.
-Set it as a GitHub Actions secret in your repository settings.
+For the scheduled weekly run, this comes from GitHub Actions secrets.
+For manual workflow_dispatch runs, a custom user ID can be passed via
+the workflow input, which overrides the secret.
+
+The MongoDB URI is read from MONGODB_URI (always from secrets — this
+is the shared database that all users connect through).
 """
 
 import os

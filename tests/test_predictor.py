@@ -5,6 +5,13 @@ from unittest.mock import MagicMock, patch
 from src.optimisation.predictor import Predictor
 
 
+def _mock_store():
+    store = MagicMock()
+    store.upsert_player_features.return_value = 0
+    store.upsert_training_examples.return_value = 0
+    return store
+
+
 class TestDeriveSeasonName:
     def test_standard_season(self):
         general_info = {
@@ -29,16 +36,21 @@ class TestDeriveSeasonName:
 
 class TestPredictorInit:
     @patch("src.optimisation.predictor.ApiClient")
-    def test_init(self, mock_api_class):
+    @patch("src.optimisation.predictor.MongoStore")
+    def test_init(self, mock_store_class, mock_api_class):
         mock_api_class.return_value = MagicMock()
+        mock_store_class.return_value = MagicMock()
         predictor = Predictor()
         assert predictor.api_client is not None
+        assert predictor.store is not None
 
 
 class TestModelXp:
     @patch("src.optimisation.predictor.ApiClient")
-    def test_model_xp_delegates_to_gp_model(self, mock_api_class):
+    @patch("src.optimisation.predictor.MongoStore")
+    def test_model_xp_delegates_to_gp_model(self, mock_store_class, mock_api_class):
         mock_api_class.return_value = MagicMock()
+        mock_store_class.return_value = _mock_store()
         predictor = Predictor()
 
         with patch("src.optimisation.gp_model.GPModel") as mock_gp_class:
@@ -51,8 +63,10 @@ class TestModelXp:
 
 class TestOptimiseTeam:
     @patch("src.optimisation.predictor.ApiClient")
-    def test_optimise_team_delegates_to_optimiser(self, mock_api_class):
+    @patch("src.optimisation.predictor.MongoStore")
+    def test_optimise_team_delegates_to_optimiser(self, mock_store_class, mock_api_class):
         mock_api_class.return_value = MagicMock()
+        mock_store_class.return_value = _mock_store()
         predictor = Predictor()
 
         mock_result = MagicMock()

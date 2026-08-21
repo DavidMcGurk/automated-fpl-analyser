@@ -1,6 +1,6 @@
 """Tests for GP model configuration and validation."""
 
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import torch
 
@@ -12,6 +12,15 @@ from src.optimisation.gp_model import (
 )
 from src.models.post_prediction import Position
 import gpytorch
+
+
+def _make_mock_store():
+    store = MagicMock()
+    store.list_seasons.return_value = []
+    store.load_training_examples.return_value = []
+    store.load_player_features.return_value = []
+    store.upsert_predictions.return_value = 0
+    return store
 
 
 class TestMakeBaseKernel:
@@ -40,18 +49,18 @@ class TestMakeBaseKernel:
 
 class TestGPModelConfig:
     def test_default_config(self):
-        model = GPModel()
-        assert model.model_type == "exact"
-        assert model.kernel_name == "rbf"
+        model = GPModel(store=_make_mock_store())
+        assert model.model_type == "svgp"
+        assert model.kernel_name == "matern32"
         assert model.normalize_target is True
 
     def test_svgp_config(self):
-        model = GPModel(model_type="svgp", kernel_name="matern32")
+        model = GPModel(model_type="svgp", kernel_name="matern32", store=_make_mock_store())
         assert model.model_type == "svgp"
         assert model.kernel_name == "matern32"
 
     def test_no_normalize_target(self):
-        model = GPModel(normalize_target=False)
+        model = GPModel(normalize_target=False, store=_make_mock_store())
         assert model.normalize_target is False
 
 
@@ -94,7 +103,7 @@ class TestTargetNormalization:
     @patch.object(GPModel, "_train_svgp")
     def test_normalize_target_stores_stats(self, mock_svgp, mock_exact):
         """When normalize_target=True, target mean/std should be stored."""
-        model = GPModel(model_type="exact", normalize_target=True)
+        model = GPModel(model_type="exact", normalize_target=True, store=_make_mock_store())
         train_x = torch.randn(20, 5)
         train_y = torch.tensor([1.0, 2.0, 3.0] * 6 + [1.0, 2.0], dtype=torch.float32)
 
@@ -107,7 +116,7 @@ class TestTargetNormalization:
     @patch.object(GPModel, "_train_exact")
     def test_no_normalize_target_stores_identity(self, mock_exact):
         """When normalize_target=False, target stats should be identity (0, 1)."""
-        model = GPModel(model_type="exact", normalize_target=False)
+        model = GPModel(model_type="exact", normalize_target=False, store=_make_mock_store())
         train_x = torch.randn(20, 5)
         train_y = torch.randn(20)
 
@@ -119,7 +128,7 @@ class TestTargetNormalization:
     @patch.object(GPModel, "_train_exact")
     def test_feature_standardization_always_applied(self, mock_exact):
         """Feature standardization should always happen regardless of target normalization."""
-        model = GPModel(normalize_target=False)
+        model = GPModel(normalize_target=False, store=_make_mock_store())
         train_x = torch.randn(20, 5) * 10 + 5  # Non-standardized
         train_y = torch.randn(20)
 
@@ -134,7 +143,7 @@ class TestTargetNormalization:
 class TestValidate:
     def test_validate_returns_metrics(self):
         """validate() should return RMSE, MAE, and means per position."""
-        model = GPModel(model_type="exact", normalize_target=True)
+        model = GPModel(model_type="exact", normalize_target=True, store=_make_mock_store())
 
         # Mock _load_training_data to return small tensors
         def mock_load(position, seasons):

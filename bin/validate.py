@@ -62,43 +62,39 @@ def main() -> None:
 
     # Default: train on all seasons except the last, validate on the last
     if args.train_seasons is None or args.val_seasons is None:
-        from pathlib import Path
+        from src.storage.mongo_client import MongoStore
 
-        BASE_DIR = Path(__file__).resolve().parents[1]
-        training_dir = BASE_DIR / "data/training"
-        all_seasons = sorted(d.name for d in training_dir.iterdir() if d.is_dir())
+        store = MongoStore()
+        all_seasons = store.list_seasons()
+        store.close()
 
-        # Filter out empty seasons (current season with no games yet)
-        non_empty = []
-        for s in all_seasons:
-            has_data = any(
-                (training_dir / s / f"{pos}.jsonl").stat().st_size > 0
-                for pos in ["goalkeepers", "defenders", "midfielders", "attackers"]
-                if (training_dir / s / f"{pos}.jsonl").exists()
-            )
-            if has_data:
-                non_empty.append(s)
-
-        if len(non_empty) < 2:
+        if len(all_seasons) < 2:
             print("Need at least 2 seasons with data for validation.")
             return
 
         if args.train_seasons is None:
-            args.train_seasons = non_empty[:-1]
+            args.train_seasons = all_seasons[:-1]
         if args.val_seasons is None:
-            args.val_seasons = [non_empty[-1]]
+            args.val_seasons = [all_seasons[-1]]
 
     print(f"Model: {args.model}, Kernel: {args.kernel}, Normalize target: {not args.no_normalize_target}")
     print(f"Train seasons: {args.train_seasons}")
     print(f"Validation seasons: {args.val_seasons}")
 
+    from src.storage.mongo_client import MongoStore
+
+    store = MongoStore()
+
     model = GPModel(
         model_type=args.model,
         kernel_name=args.kernel,
         normalize_target=not args.no_normalize_target,
+        store=store,
     )
 
     results = model.validate(args.train_seasons, args.val_seasons)
+
+    store.close()
 
     # Summary
     print(f"\n{'=' * 60}")
