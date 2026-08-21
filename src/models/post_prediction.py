@@ -16,5 +16,5 @@ class PostPlayer(BaseModel):
     player_id: int
     position: Position
     team: int
-    xp_series: list[int]
+    xp_series: list[float]
     current_price: float

@@ -103,7 +103,7 @@ class PlayerAttributes(BaseModel):
     dreamteam_count: int
 
     ep_next: Optional[str]
-    ep_this: str
+    ep_this: Optional[str]
     event_points: int
 
     first_name: str

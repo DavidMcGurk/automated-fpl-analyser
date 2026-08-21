@@ -11,7 +11,7 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 
 
 FEATURE_DIR = BASE_DIR / "data/player_features"
-TRAINING_DIR = BASE_DIR / "data/training"
+TRAINING_BASE_DIR = BASE_DIR / "data/training"
 
 
 FEATURE_PATHS = {
@@ -22,12 +22,14 @@ FEATURE_PATHS = {
 }
 
 
-TRAINING_PATHS = {
-    Position.GOALKEEPER: TRAINING_DIR / "goalkeepers.jsonl",
-    Position.DEFENDER: TRAINING_DIR / "defenders.jsonl",
-    Position.MIDFIELDER: TRAINING_DIR / "midfielders.jsonl",
-    Position.ATTACKER: TRAINING_DIR / "attackers.jsonl",
-}
+def _training_paths(season: str) -> dict[Position, Path]:
+    training_dir = TRAINING_BASE_DIR / season
+    return {
+        Position.GOALKEEPER: training_dir / "goalkeepers.jsonl",
+        Position.DEFENDER: training_dir / "defenders.jsonl",
+        Position.MIDFIELDER: training_dir / "midfielders.jsonl",
+        Position.ATTACKER: training_dir / "attackers.jsonl",
+    }
 
 
 class Predictor:
@@ -39,18 +41,22 @@ class Predictor:
         num_players = self.api_client.get_number_of_players()
         general_info = self.api_client.get_general_info()
 
+        season = self._derive_season_name(general_info)
+        training_paths = _training_paths(season)
+        training_dir = TRAINING_BASE_DIR / season
+
         FEATURE_DIR.mkdir(
             parents=True,
             exist_ok=True,
         )
 
-        TRAINING_DIR.mkdir(
+        training_dir.mkdir(
             parents=True,
             exist_ok=True,
         )
 
         feature_handles = {position: path.open("w") for position, path in FEATURE_PATHS.items()}
-        training_handles = {position: path.open("w") for position, path in TRAINING_PATHS.items()}
+        training_handles = {position: path.open("w") for position, path in training_paths.items()}
 
         try:
 
@@ -94,15 +100,51 @@ class Predictor:
             for handle in training_handles.values():
                 handle.close()
 
-    def model_xp(self) -> None:
-        # Produce ML model of expected points (xP) / player for next <5 fixtures, from player data and upcoming fixtures
-        # Write to folder in data, describing player id, xP / player for remaining up to 5 fixtures,
-        # + other rel. info (e.g. position)
-        pass
+        print(f"\nTraining data written to: {training_dir}")
 
-    def optimise_team(self) -> None:
-        # Evaluate xP of users current team
-        # For each non-selected player with > avg xp, see if they can be included in team + if that improves things
-        # (Subsequently) consider pairs of transfers which can most improve xP
-        # Relevant constraints: position rules, player prices, club max players, budget (sale prices / player), etc.
-        pass
+    @staticmethod
+    def _derive_season_name(general_info: dict) -> str:
+        """Derive a season folder name (e.g. '2026_27') from the API events."""
+        events = general_info.get("events", [])
+        if not events:
+            return "current"
+
+        last_event = events[-1]
+        deadline = last_event.get("deadline_time", "")
+        end_year = int(deadline[:4])
+
+        return f"{end_year - 1}_{str(end_year)[-2:]}"
+
+    def model_xp(self) -> None:
+        """Train GP models and predict xP for all current players."""
+        from src.optimisation.gp_model import GPModel
+
+        gp = GPModel()
+        gp.train()
+        gp.predict()
+
+    def optimise_team(self, user_id: int, max_transfers: int = 2) -> None:
+        """Optimise a user's team by suggesting transfers that maximise xP."""
+        from src.optimisation.team_optimiser import TeamOptimiser
+
+        optimiser = TeamOptimiser()
+        result = optimiser.optimise(user_id, max_transfers=max_transfers)
+
+        print(f"\n{'=' * 60}")
+        print(f"Team Optimisation Results for User {user_id}")
+        print(f"{'=' * 60}")
+        print(f"Current squad xP: {result.current_squad_xp}")
+        print(f"Optimised squad xP: {result.optimised_squad_xp}")
+        print(f"Transfers used: {result.transfers_used}")
+        print(f"Point hit: {result.point_hit}")
+        print(f"Net improvement: {result.optimised_squad_xp - result.current_squad_xp - result.point_hit:+.2f}")
+
+        if result.suggestions:
+            print("\nSuggested transfers:")
+            for s in result.suggestions:
+                print(f"  {s.player_out_name} (ID: {s.player_out}) -> " f"{s.player_in_name} (ID: {s.player_in})")
+                print(f"    xP gain: {s.xP_gain:+.2f}, " f"cost change: {s.cost_change:+.2f}")
+        else:
+            print("\nNo beneficial transfers found.")
+
+        print(f"{'=' * 60}")

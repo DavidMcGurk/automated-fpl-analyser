@@ -32,7 +32,10 @@ class ApiClient:
         return self.client.get(f"{API_URL}/element-summary/{player_id}/").json()
 
     def get_user_summary(self, user_id: int) -> dict:
-        return self.client.get(f"{API_URL}/api/entry/{user_id}/").json()
+        return self.client.get(f"{API_URL}/entry/{user_id}/").json()
+
+    def get_user_picks(self, user_id: int, gameweek: int) -> dict:
+        return self.client.get(f"{API_URL}/entry/{user_id}/event/{gameweek}/picks/").json()
 
     def get_player_position(self, player_element: dict) -> Position:
         element_type = player_element["element_type"]

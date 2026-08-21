@@ -1,0 +1,250 @@
+"""Tests for TeamOptimiser."""
+
+from unittest.mock import MagicMock, patch
+
+from src.optimisation.team_optimiser import TeamOptimiser
+from src.models.squad import Squad, SquadPick, TransferSuggestion
+from src.models.post_prediction import Position
+
+
+def _make_optimiser(predictions=None, player_info=None):
+    """Create a TeamOptimiser with mocked API and pre-loaded data."""
+    with patch.object(TeamOptimiser, "__init__", return_value=None):
+        opt = TeamOptimiser.__new__(TeamOptimiser)
+        opt.api_client = MagicMock()
+        opt.predictions = predictions or {}
+        opt.player_names = player_info.get("names", {}) if player_info else {}
+        opt.player_positions = player_info.get("positions", {}) if player_info else {}
+        opt.player_teams = player_info.get("teams", {}) if player_info else {}
+        opt.player_prices = player_info.get("prices", {}) if player_info else {}
+        return opt
+
+
+class TestComputeSquadXp:
+    def test_empty_squad(self):
+        opt = _make_optimiser()
+        squad = Squad(picks=[])
+        assert opt.compute_squad_xp(squad) == 0.0
+
+    def test_basic_squad(self):
+        opt = _make_optimiser(predictions={1: {"xp": 5.0}, 2: {"xp": 3.0}})
+        squad = Squad(
+            picks=[
+                SquadPick(element=1, position=1, selling_price=5.0, purchase_price=5.0, multiplier=1),
+                SquadPick(element=2, position=2, selling_price=4.0, purchase_price=4.0, multiplier=1),
+            ]
+        )
+        assert opt.compute_squad_xp(squad) == 8.0
+
+    def test_captain_double(self):
+        opt = _make_optimiser(predictions={1: {"xp": 5.0}})
+        squad = Squad(
+            picks=[
+                SquadPick(element=1, position=1, selling_price=5.0, purchase_price=5.0, multiplier=2),
+            ]
+        )
+        assert opt.compute_squad_xp(squad) == 10.0
+
+
+class TestGetXp:
+    def test_existing_player(self):
+        opt = _make_optimiser(predictions={42: {"xp": 7.5}})
+        assert opt.get_xp(42) == 7.5
+
+    def test_missing_player(self):
+        opt = _make_optimiser(predictions={})
+        assert opt.get_xp(999) == 0.0
+
+
+class TestApplyTransfers:
+    def test_single_transfer(self):
+        opt = _make_optimiser(
+            predictions={1: {"xp": 5.0}, 2: {"xp": 8.0}},
+            player_info={"prices": {2: 6.0}},
+        )
+        squad = Squad(
+            picks=[
+                SquadPick(element=1, position=1, selling_price=5.0, purchase_price=5.0),
+            ],
+            bank=0.0,
+            value=5.0,
+        )
+        suggestions = [
+            TransferSuggestion(
+                player_out=1,
+                player_in=2,
+                xP_gain=3.0,
+                cost_change=1.0,
+                net_xp_improvement=3.0,
+            )
+        ]
+        new_squad = opt._apply_transfers(squad, suggestions)
+        assert new_squad.picks[0].element == 2
+        assert new_squad.picks[0].selling_price == 6.0
+
+    def test_no_transfers(self):
+        opt = _make_optimiser()
+        squad = Squad(
+            picks=[
+                SquadPick(element=1, position=1, selling_price=5.0, purchase_price=5.0),
+            ],
+            bank=0.0,
+            value=5.0,
+        )
+        new_squad = opt._apply_transfers(squad, [])
+        assert new_squad.picks[0].element == 1
+
+
+class TestCheckSquadValid:
+    def test_valid_squad(self):
+        opt = _make_optimiser(
+            player_info={
+                "positions": {
+                    i: pos
+                    for i, pos in enumerate(
+                        [
+                            Position.GOALKEEPER,
+                            Position.GOALKEEPER,
+                            Position.DEFENDER,
+                            Position.DEFENDER,
+                            Position.DEFENDER,
+                            Position.DEFENDER,
+                            Position.DEFENDER,
+                            Position.MIDFIELDER,
+                            Position.MIDFIELDER,
+                            Position.MIDFIELDER,
+                            Position.MIDFIELDER,
+                            Position.MIDFIELDER,
+                            Position.ATTACKER,
+                            Position.ATTACKER,
+                            Position.ATTACKER,
+                        ],
+                        start=1,
+                    )
+                },
+                "teams": {i: ((i - 1) // 3) + 1 for i in range(1, 16)},  # Spread across 5 clubs
+            }
+        )
+        picks = [SquadPick(element=i, position=i, selling_price=5.0, purchase_price=5.0) for i in range(1, 16)]
+        squad = Squad(picks=picks, bank=25.0, value=75.0)
+        assert opt._check_squad_valid(squad) is True
+
+    def test_wrong_squad_size(self):
+        opt = _make_optimiser()
+        squad = Squad(picks=[])
+        assert opt._check_squad_valid(squad) is False
+
+    def test_too_many_from_club(self):
+        opt = _make_optimiser(
+            player_info={
+                "positions": {
+                    i: pos
+                    for i, pos in enumerate(
+                        [
+                            Position.GOALKEEPER,
+                            Position.GOALKEEPER,
+                            Position.DEFENDER,
+                            Position.DEFENDER,
+                            Position.DEFENDER,
+                            Position.DEFENDER,
+                            Position.DEFENDER,
+                            Position.MIDFIELDER,
+                            Position.MIDFIELDER,
+                            Position.MIDFIELDER,
+                            Position.MIDFIELDER,
+                            Position.MIDFIELDER,
+                            Position.ATTACKER,
+                            Position.ATTACKER,
+                            Position.ATTACKER,
+                        ],
+                        start=1,
+                    )
+                },
+                "teams": {i: 1 for i in range(1, 16)},  # All from same team
+            }
+        )
+        picks = [SquadPick(element=i, position=i, selling_price=5.0, purchase_price=5.0) for i in range(1, 16)]
+        squad = Squad(picks=picks, bank=25.0, value=75.0)
+        assert opt._check_squad_valid(squad) is False
+
+    def test_over_budget(self):
+        opt = _make_optimiser(
+            player_info={
+                "positions": {
+                    i: pos
+                    for i, pos in enumerate(
+                        [
+                            Position.GOALKEEPER,
+                            Position.GOALKEEPER,
+                            Position.DEFENDER,
+                            Position.DEFENDER,
+                            Position.DEFENDER,
+                            Position.DEFENDER,
+                            Position.DEFENDER,
+                            Position.MIDFIELDER,
+                            Position.MIDFIELDER,
+                            Position.MIDFIELDER,
+                            Position.MIDFIELDER,
+                            Position.MIDFIELDER,
+                            Position.ATTACKER,
+                            Position.ATTACKER,
+                            Position.ATTACKER,
+                        ],
+                        start=1,
+                    )
+                },
+                "teams": {i: ((i - 1) // 3) + 1 for i in range(1, 16)},
+            }
+        )
+        picks = [SquadPick(element=i, position=i, selling_price=8.0, purchase_price=8.0) for i in range(1, 16)]
+        squad = Squad(picks=picks, bank=0.0, value=120.0)
+        assert opt._check_squad_valid(squad) is False
+
+
+class TestFindBestReplacements:
+    def test_finds_better_player(self):
+        opt = _make_optimiser(
+            predictions={
+                1: {"xp": 2.0},
+                10: {"xp": 5.0},
+                11: {"xp": 4.0},
+            },
+            player_info={
+                "positions": {1: Position.GOALKEEPER, 10: Position.GOALKEEPER, 11: Position.GOALKEEPER},
+                "prices": {1: 4.0, 10: 4.0, 11: 4.5},
+                "teams": {1: 1, 10: 2, 11: 3},
+            },
+        )
+        squad = Squad(
+            picks=[
+                SquadPick(element=1, position=1, selling_price=4.0, purchase_price=4.0),
+            ],
+            bank=1.0,
+            value=4.0,
+        )
+        players_out = [squad.picks[0]]
+        result = opt._find_best_replacements(squad, players_out)
+        assert result is not None
+        assert result[0].player_in == 10  # Higher xP, within budget
+        assert result[0].xP_gain == 3.0
+
+    def test_no_affordable_replacement(self):
+        opt = _make_optimiser(
+            predictions={1: {"xp": 2.0}, 10: {"xp": 10.0}},
+            player_info={
+                "positions": {1: Position.GOALKEEPER, 10: Position.GOALKEEPER},
+                "prices": {1: 4.0, 10: 10.0},
+                "teams": {1: 1, 10: 2},
+            },
+        )
+        squad = Squad(
+            picks=[
+                SquadPick(element=1, position=1, selling_price=4.0, purchase_price=4.0),
+            ],
+            bank=0.0,
+            value=4.0,
+        )
+        players_out = [squad.picks[0]]
+        result = opt._find_best_replacements(squad, players_out)
+        # Player 10 costs 10.0 but budget is only 4.0
+        assert result is None
