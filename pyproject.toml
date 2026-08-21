@@ -17,3 +17,14 @@ dependencies = [
 [tool.setuptools]
 packages = ["src"]
 package-dir = {"src" = "./src"}
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]

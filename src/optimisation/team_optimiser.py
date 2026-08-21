@@ -182,6 +182,7 @@ class TeamOptimiser:
         available_budget = squad.bank + outgoing_value
 
         # Players remaining in squad (for constraint checking)
+        outgoing_ids = {p.element for p in players_out}
         remaining_ids = {p.element for p in squad.picks if p not in players_out}
 
         # Find all valid replacement combinations
@@ -194,6 +195,8 @@ class TeamOptimiser:
 
         for player_id, pred in self.predictions.items():
             if player_id in remaining_ids:
+                continue
+            if player_id in outgoing_ids:
                 continue
 
             position = self.player_positions.get(player_id)
