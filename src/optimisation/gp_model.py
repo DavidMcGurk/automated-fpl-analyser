@@ -4,10 +4,10 @@ Trains per-position GP regression models using gpytorch on historical
 training data, then predicts xP for current players from inference features.
 
 Supports two model types:
-- "exact": Exact GP with subsampling (default, O(n³) but simple)
-- "svgp": Stochastic Variational GP with inducing points (scales to large datasets)
+- "svgp": Stochastic Variational GP with inducing points (default, scales to large datasets)
+- "exact": Exact GP with subsampling (O(n³) but simple)
 
-Kernel can be configured: "rbf", "matern32", or "matern52".
+Kernel can be configured: "rbf", "matern32", or "matern52" (default: matern32).
 """
 
 import torch
@@ -109,8 +109,8 @@ class GPModel:
 
     def __init__(
         self,
-        model_type: str = "exact",
-        kernel_name: str = "rbf",
+        model_type: str = "svgp",
+        kernel_name: str = "matern32",
         normalize_target: bool = True,
         store: MongoStore | None = None,
     ) -> None:

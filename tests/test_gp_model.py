@@ -50,8 +50,8 @@ class TestMakeBaseKernel:
 class TestGPModelConfig:
     def test_default_config(self):
         model = GPModel(store=_make_mock_store())
-        assert model.model_type == "exact"
-        assert model.kernel_name == "rbf"
+        assert model.model_type == "svgp"
+        assert model.kernel_name == "matern32"
         assert model.normalize_target is True
 
     def test_svgp_config(self):

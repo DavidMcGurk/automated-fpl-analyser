@@ -44,15 +44,20 @@ uv run python bin/migrate.py
 
 The repository includes a GitHub Actions workflow (`.github/workflows/run_automation.yaml`) that runs the full pipeline every Friday at 12:00 UTC and emails you the results.
 
-To use it:
+The scheduled run uses the repository owner's `FPL_USER_ID` and `EMAIL_ADDRESS` secrets automatically. Other users can trigger a manual run with their own FPL user ID and email — no fork or secrets required:
 
-1. Fork this repository
-2. Add the following secrets in **Settings → Secrets and variables → Actions**:
-   - `FPL_USER_ID` — Your FPL user ID (find it in your team page URL, e.g. `fantasy.premierleague.com/entry/3846224`)
-   - `MONGODB_URI` — Your MongoDB connection string
-   - `RESEND_API_KEY` — API key from [Resend](https://resend.com) for email delivery
-   - `EMAIL_ADDRESS` — The email address to send results to
-3. The workflow will run automatically on schedule, or you can trigger it manually via **Actions → Run workflow**
+1. Go to **Actions → FPL Weekly Automation → Run workflow**
+2. Enter your FPL user ID (find it in your team page URL, e.g. `fantasy.premierleague.com/entry/3846224`)
+3. Enter your email address to receive results
+4. Click **Run workflow**
+
+The pipeline connects to a shared MongoDB database (configured via the `MONGODB_URI` secret), so all users share the same training data and predictions. Only the team optimisation step is personalised to the user ID you provide.
+
+**Repository secrets** (set once by the repo owner):
+- `FPL_USER_ID` — Default FPL user ID for scheduled runs
+- `MONGODB_URI` — MongoDB Atlas connection string
+- `RESEND_API_KEY` — API key from [Resend](https://resend.com) for email delivery
+- `EMAIL_ADDRESS` — Default email address for scheduled run results
 
 ### Local usage
 
