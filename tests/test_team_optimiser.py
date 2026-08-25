@@ -288,3 +288,32 @@ class TestGetSquadFallback:
         assert squad.picks[0].element == 42
         # Should only call get_user_picks once (for current GW)
         assert opt.api_client.get_user_picks.call_count == 1
+
+
+class TestGetSquadPriceFallback:
+    """Tests that get_squad falls back to now_cost when API doesn't provide selling_price."""
+
+    def test_uses_now_cost_when_no_selling_price(self):
+        """FPL API doesn't include selling_price in picks for some gameweeks.
+
+        The squad should fall back to the player's current now_cost from the API.
+        """
+        opt = _make_optimiser(
+            player_info={
+                "prices": {42: 6.5},
+            }
+        )
+        opt.api_client.get_user_summary.return_value = {
+            "last_deadline_bank": 0,
+            "last_deadline_value": 650,
+            "started_event": 1,
+        }
+        opt.api_client.get_current_gw.return_value = 1
+        # No selling_price or purchase_price in picks data
+        opt.api_client.get_user_picks.return_value = {
+            "picks": [{"element": 42, "position": 1, "multiplier": 1}],
+        }
+
+        squad = opt.get_squad(123)
+        assert squad.picks[0].selling_price == 6.5
+        assert squad.picks[0].purchase_price == 6.5

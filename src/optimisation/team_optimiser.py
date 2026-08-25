@@ -88,12 +88,25 @@ class TeamOptimiser:
 
         picks = []
         for pick in picks_data.get("picks", []):
+            element = pick["element"]
+            # FPL API doesn't always include selling_price/purchase_price in picks.
+            # Fall back to the player's current now_cost from the general info.
+            api_price = pick.get("selling_price") or pick.get("purchase_price")
+            if api_price is None:
+                # Will be set after _load_player_info populates prices;
+                # for now use 0 and fix up below
+                selling_price = 0.0
+                purchase_price = 0.0
+            else:
+                selling_price = api_price / 10.0
+                purchase_price = (pick.get("purchase_price") or api_price) / 10.0
+
             picks.append(
                 SquadPick(
-                    element=pick["element"],
+                    element=element,
                     position=pick["position"],
-                    selling_price=pick.get("selling_price", pick.get("purchase_price", 0)) / 10.0,
-                    purchase_price=pick.get("purchase_price", 0) / 10.0,
+                    selling_price=selling_price,
+                    purchase_price=purchase_price,
                     is_captain=pick.get("is_captain", False),
                     is_vice_captain=pick.get("is_vice_captain", False),
                     multiplier=pick.get("multiplier", 1),
@@ -103,7 +116,16 @@ class TeamOptimiser:
         bank = (user_summary.get("last_deadline_bank") or 0) / 10.0
         value = (user_summary.get("last_deadline_value") or 0) / 10.0
 
-        return Squad(picks=picks, bank=bank, value=value)
+        squad = Squad(picks=picks, bank=bank, value=value)
+
+        # If selling prices weren't in the API data, fall back to current now_cost
+        for pick in squad.picks:
+            if pick.selling_price == 0.0 and pick.element in self.player_prices:
+                current_price = self.player_prices[pick.element]
+                pick.selling_price = current_price
+                pick.purchase_price = pick.purchase_price or current_price
+
+        return squad
 
     def get_xp(self, player_id: int) -> float:
         """Get xP for a player, defaulting to 0 if no prediction exists."""
