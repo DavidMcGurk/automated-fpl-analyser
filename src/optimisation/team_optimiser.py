@@ -161,7 +161,12 @@ class TeamOptimiser:
                 point_hit = max(0, n_transfers - free_transfers) * POINT_HIT_PER_TRANSFER
                 net_improvement = new_xp - current_xp - point_hit
 
-                if net_improvement > (best_xp - current_xp - (best_result.point_hit if best_result else 0)):
+                prev_best_net = best_xp - current_xp - (best_result.point_hit if best_result else 0)
+                if net_improvement > prev_best_net:
+                    print(
+                        f"    -> New best: {new_xp:.2f} xP (net +{net_improvement:.2f} "
+                        f"after {point_hit}pt hit) with {n_transfers} transfer(s)"
+                    )
                     best_xp = new_xp
                     best_result = OptimisationResult(
                         current_squad=squad,
@@ -206,6 +211,15 @@ class TeamOptimiser:
         outgoing_value = sum(p.selling_price for p in players_out)
         available_budget = squad.bank + outgoing_value
 
+        # Log what we're searching for
+        out_names = [self.player_names.get(p.element, "?") for p in players_out]
+        out_xps = [self.get_xp(p.element) for p in players_out]
+        print(
+            f"    Trying transfer: out={out_names} (xP={out_xps}), "
+            f"bank={squad.bank:.1f}, outgoing_value={outgoing_value:.1f}, "
+            f"available_budget={available_budget:.1f}"
+        )
+
         # Players remaining in squad (for constraint checking)
         outgoing_ids = {p.element for p in players_out}
         remaining_ids = {p.element for p in squad.picks if p not in players_out}
@@ -246,6 +260,8 @@ class TeamOptimiser:
             position = outgoing_positions[i]
             best_player_in = None
             best_xp_gain = -999.0
+            n_candidates = len(candidates_by_position[position])
+            n_affordable = 0
 
             for candidate_id in candidates_by_position[position]:
                 if candidate_id in used_incoming:
@@ -256,6 +272,7 @@ class TeamOptimiser:
                 candidate_price = self.player_prices.get(candidate_id, 999.0)
                 if candidate_price > remaining_budget:
                     continue
+                n_affordable += 1
 
                 xp_gain = self.get_xp(candidate_id) - self.get_xp(player_out.element)
 
@@ -264,7 +281,16 @@ class TeamOptimiser:
                     best_player_in = candidate_id
 
             if best_player_in is None:
+                print(
+                    f"      No replacement found for {self.player_names.get(player_out.element, '?')} "
+                    f"({position.name}): {n_candidates} candidates, {n_affordable} affordable"
+                )
                 return None
+
+            print(
+                f"      Best replacement for {self.player_names.get(player_out.element, '?')}: "
+                f"{self.player_names.get(best_player_in, '?')} (xP gain: {best_xp_gain:.2f})"
+            )
 
             used_incoming.add(best_player_in)
             remaining_budget -= self.player_prices[best_player_in]
