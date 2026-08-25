@@ -40,13 +40,14 @@ jobs:
         env:
           FPL_USER_ID: ${{ github.event.inputs.fpl_user_id || secrets.FPL_USER_ID }}
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          EMAIL_OUTPUT_PATH: tmp/email_content.txt
         run: |
           mkdir -p tmp
-          uv run python bin/run.py > tmp/output.txt
+          uv run python bin/run.py
 
       - name: Send email
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           EMAIL_ADDRESS: ${{ github.event.inputs.email_address || secrets.EMAIL_ADDRESS }}
         run: |
-          uv run python bin/email_findings.py tmp/output.txt
+          uv run python bin/email_findings.py tmp/email_content.txt

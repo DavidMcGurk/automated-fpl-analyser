@@ -37,6 +37,37 @@ class TestPlayerAttributes:
         assert attrs.chance_of_playing_next_round is None
         assert attrs.penalties_order is None
 
+    def test_rank_fields_none(self, make_player_attributes):
+        """Rank fields should accept None (FPL API returns null early in season)."""
+        attrs = PlayerAttributes(
+            **make_player_attributes(
+                influence_rank=None,
+                influence_rank_type=None,
+                creativity_rank=None,
+                creativity_rank_type=None,
+                threat_rank=None,
+                threat_rank_type=None,
+                ict_index_rank=None,
+                ict_index_rank_type=None,
+                now_cost_rank=None,
+                now_cost_rank_type=None,
+                form_rank=None,
+                form_rank_type=None,
+                points_per_game_rank=None,
+                points_per_game_rank_type=None,
+                selected_rank=None,
+                selected_rank_type=None,
+            )
+        )
+        assert attrs.influence_rank is None
+        assert attrs.creativity_rank is None
+        assert attrs.threat_rank is None
+        assert attrs.ict_index_rank is None
+        assert attrs.now_cost_rank is None
+        assert attrs.form_rank is None
+        assert attrs.points_per_game_rank is None
+        assert attrs.selected_rank is None
+
 
 class TestHistory:
     def test_valid_history(self, make_history):

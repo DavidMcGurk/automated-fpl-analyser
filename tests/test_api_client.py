@@ -101,3 +101,17 @@ class TestApiClient:
         assert client.get_player_position({"element_type": 2}) == Position.DEFENDER
         assert client.get_player_position({"element_type": 3}) == Position.MIDFIELDER
         assert client.get_player_position({"element_type": 4}) == Position.ATTACKER
+
+    @patch("src.api_client.client.Client")
+    def test_get_player_info_batch(self, mock_client_class):
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+        mock_client.get.return_value.json.return_value = {"fixtures": [], "history": []}
+
+        client = ApiClient()
+        result = client.get_player_info_batch([1, 2, 3])
+        assert len(result) == 3
+        assert set(result.keys()) == {1, 2, 3}
+        for pid in result:
+            assert "fixtures" in result[pid]
+            assert "history" in result[pid]
