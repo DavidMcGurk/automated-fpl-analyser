@@ -41,6 +41,10 @@ class TeamOptimiser:
         """Load xP predictions for all players from MongoDB."""
         self.predictions = self.store.load_all_predictions()
 
+        if self.predictions:
+            xps = [p["xp"] for p in self.predictions.values()]
+            print(f"  Loaded {len(self.predictions)} predictions (xP range: {min(xps):.2f} - {max(xps):.2f})")
+
     def _load_player_info(self) -> None:
         """Load player names, positions, teams, and prices from the API."""
         general_info = self.api_client.get_general_info()
@@ -131,6 +135,14 @@ class TeamOptimiser:
         squad = self.get_squad(user_id)
         current_xp = self.compute_squad_xp(squad)
 
+        # Log squad xP breakdown
+        print("  Squad xP breakdown:")
+        for pick in squad.picks:
+            name = self.player_names.get(pick.element, "Unknown")
+            xp = self.get_xp(pick.element)
+            cap = " (C)" if pick.is_captain else (" (VC)" if pick.is_vice_captain else "")
+            print(f"    {name}{cap}: {xp:.2f} x{pick.multiplier} = {xp * pick.multiplier:.2f}")
+
         best_result = None
         best_xp = current_xp
 
@@ -169,6 +181,17 @@ class TeamOptimiser:
                 transfers_used=0,
                 point_hit=0,
             )
+
+            # Log top available players per position for diagnostics
+            print("\n  No beneficial transfers found. Top xP per position:")
+            for pos in Position:
+                pos_players = [
+                    (pid, pred["xp"]) for pid, pred in self.predictions.items() if self.player_positions.get(pid) == pos
+                ]
+                pos_players.sort(key=lambda x: x[1], reverse=True)
+                top = pos_players[:3]
+                names = [(self.player_names.get(pid, "?"), xp) for pid, xp in top]
+                print(f"    {pos.name}: {names}")
 
         # Enrich suggestions with player names
         for suggestion in best_result.suggestions:

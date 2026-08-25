@@ -120,9 +120,16 @@ class TestLoadAllPredictions:
 class TestUpsertPredictions:
     @patch("src.storage.mongo_client.MongoClient")
     def test_upsert_empty_list(self, mock_client_class):
+        mock_db = MagicMock()
+        mock_client_class.return_value.__getitem__.return_value = mock_db
+        mock_collection = MagicMock()
+        mock_db.__getitem__.return_value = mock_collection
+        mock_collection.count_documents.return_value = 0
+
         store = MongoStore(uri="mongodb://localhost:27017")
         result = store.upsert_predictions(Position.DEFENDER, [])
         assert result == 0
+        mock_collection.delete_many.assert_called_once()
 
     @patch("src.storage.mongo_client.MongoClient")
     def test_upsert_calls_bulk_write(self, mock_client_class):
@@ -130,21 +137,50 @@ class TestUpsertPredictions:
         mock_client_class.return_value.__getitem__.return_value = mock_db
         mock_collection = MagicMock()
         mock_db.__getitem__.return_value = mock_collection
-        mock_result = MagicMock()
-        mock_result.upserted_count = 1
-        mock_result.modified_count = 0
-        mock_collection.bulk_write.return_value = mock_result
+        mock_collection.count_documents.return_value = 1
 
         store = MongoStore(uri="mongodb://localhost:27017")
         predictions = [{"player_id": 1, "xp": 5.0}]
         result = store.upsert_predictions(Position.DEFENDER, predictions)
         assert result == 1
         mock_collection.bulk_write.assert_called_once()
+        mock_collection.delete_many.assert_called_once()
 
 
 class TestUpsertPlayerFeatures:
     @patch("src.storage.mongo_client.MongoClient")
     def test_upsert_empty_list(self, mock_client_class):
+        mock_db = MagicMock()
+        mock_client_class.return_value.__getitem__.return_value = mock_db
+        mock_collection = MagicMock()
+        mock_db.__getitem__.return_value = mock_collection
+        mock_collection.count_documents.return_value = 0
+
         store = MongoStore(uri="mongodb://localhost:27017")
         result = store.upsert_player_features(Position.MIDFIELDER, [])
         assert result == 0
+        mock_collection.delete_many.assert_called_once()
+
+    @patch("src.storage.mongo_client.MongoClient")
+    def test_upsert_deletes_stale_features(self, mock_client_class):
+        """Stale features for players no longer in the API should be deleted."""
+        mock_db = MagicMock()
+        mock_client_class.return_value.__getitem__.return_value = mock_db
+        mock_collection = MagicMock()
+        mock_db.__getitem__.return_value = mock_collection
+        mock_collection.count_documents.return_value = 2
+
+        store = MongoStore(uri="mongodb://localhost:27017")
+        features = [
+            {"player_id": 1, "now_cost": 5.0},
+            {"player_id": 2, "now_cost": 6.0},
+        ]
+        result = store.upsert_player_features(Position.MIDFIELDER, features)
+        assert result == 2
+
+        # Verify delete_many was called with $nin for stale player IDs
+        delete_call = mock_collection.delete_many.call_args
+        delete_filter = delete_call[0][0]
+        assert delete_filter["position"] == Position.MIDFIELDER.value
+        assert "$nin" in delete_filter["player_id"]
+        assert set(delete_filter["player_id"]["$nin"]) == {1, 2}

@@ -97,9 +97,24 @@ class MongoStore:
     # -- Player features --
 
     def upsert_player_features(self, position: Position, features: list[dict]) -> int:
-        """Bulk upsert current player features for a position."""
+        """Replace all player features for a position.
+
+        Deletes stale features for players no longer in the API, then upserts
+        the current set. Returns the total number of features stored.
+        """
         if not features:
+            self.features.delete_many({"position": position.value})
             return 0
+
+        current_player_ids = [feat.get("player_id") for feat in features]
+
+        # Delete features for players no longer in the current API data
+        self.features.delete_many(
+            {
+                "position": position.value,
+                "player_id": {"$nin": current_player_ids},
+            }
+        )
 
         ops = []
         for feat in features:
@@ -108,8 +123,8 @@ class MongoStore:
             doc = {**filter_doc, **feat}
             ops.append(UpdateOne(filter_doc, {"$set": doc}, upsert=True))
 
-        result = self.features.bulk_write(ops)
-        return result.upserted_count + result.modified_count
+        self.features.bulk_write(ops)
+        return self.features.count_documents({"position": position.value})
 
     def load_player_features(self, position: Position) -> list[dict]:
         """Load all current player features for a position."""
@@ -119,9 +134,24 @@ class MongoStore:
     # -- Predictions --
 
     def upsert_predictions(self, position: Position, predictions: list[dict]) -> int:
-        """Bulk upsert xP predictions for a position."""
+        """Replace all predictions for a position.
+
+        Deletes stale predictions for players no longer in the current features,
+        then upserts the new set. Returns the total number of predictions stored.
+        """
         if not predictions:
+            self.predictions.delete_many({"position": position.value})
             return 0
+
+        current_player_ids = [pred.get("player_id") for pred in predictions]
+
+        # Delete predictions for players no longer in the current set
+        self.predictions.delete_many(
+            {
+                "position": position.value,
+                "player_id": {"$nin": current_player_ids},
+            }
+        )
 
         ops = []
         for pred in predictions:
@@ -130,8 +160,8 @@ class MongoStore:
             doc = {**filter_doc, **pred}
             ops.append(UpdateOne(filter_doc, {"$set": doc}, upsert=True))
 
-        result = self.predictions.bulk_write(ops)
-        return result.upserted_count + result.modified_count
+        self.predictions.bulk_write(ops)
+        return self.predictions.count_documents({"position": position.value})
 
     def load_predictions(self, position: Position) -> list[dict]:
         """Load all predictions for a position."""
