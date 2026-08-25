@@ -248,3 +248,43 @@ class TestFindBestReplacements:
         result = opt._find_best_replacements(squad, players_out)
         # Player 10 costs 10.0 but budget is only 4.0
         assert result is None
+
+
+class TestGetSquadFallback:
+    """Tests that get_squad falls back to the most recent GW with picks."""
+
+    def test_falls_back_to_previous_gw(self):
+        opt = _make_optimiser()
+        opt.api_client.get_user_summary.return_value = {
+            "last_deadline_bank": 500,
+            "last_deadline_value": 5000,
+            "started_event": 1,
+        }
+        opt.api_client.get_current_gw.return_value = 2
+        # GW2 has no picks, GW1 has picks
+        opt.api_client.get_user_picks.side_effect = [
+            {"picks": []},  # GW2
+            {"picks": [{"element": 1, "position": 1, "selling_price": 50, "purchase_price": 50}]},  # GW1
+        ]
+
+        squad = opt.get_squad(123)
+        assert len(squad.picks) == 1
+        assert squad.picks[0].element == 1
+
+    def test_uses_current_gw_when_picks_exist(self):
+        opt = _make_optimiser()
+        opt.api_client.get_user_summary.return_value = {
+            "last_deadline_bank": 500,
+            "last_deadline_value": 5000,
+            "started_event": 1,
+        }
+        opt.api_client.get_current_gw.return_value = 2
+        opt.api_client.get_user_picks.return_value = {
+            "picks": [{"element": 42, "position": 1, "selling_price": 60, "purchase_price": 60}],
+        }
+
+        squad = opt.get_squad(123)
+        assert len(squad.picks) == 1
+        assert squad.picks[0].element == 42
+        # Should only call get_user_picks once (for current GW)
+        assert opt.api_client.get_user_picks.call_count == 1

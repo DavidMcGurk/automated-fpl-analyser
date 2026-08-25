@@ -53,10 +53,14 @@ class TeamOptimiser:
             self.player_prices[player_id] = element["now_cost"] / 10.0
 
     def get_squad(self, user_id: int) -> Squad:
-        """Fetch a user's current squad from the FPL API."""
+        """Fetch a user's current squad from the FPL API.
+
+        Falls back to the most recent gameweek that has saved picks if the
+        current gameweek has none (e.g. user hasn't set their team yet).
+        """
         user_summary = self.api_client.get_user_summary(user_id)
 
-        # Try to get picks for the current gameweek
+        # Determine the current gameweek
         try:
             current_gw: int | None = self.api_client.get_current_gw()
         except Exception:
@@ -65,7 +69,18 @@ class TeamOptimiser:
         if current_gw is None:
             raise ValueError("Could not determine current gameweek")
 
+        # Try the current GW first, then fall back to earlier GWs
         picks_data = self.api_client.get_user_picks(user_id, current_gw)
+        used_gw = current_gw
+        if not picks_data.get("picks"):
+            started_gw = user_summary.get("started_event") or 1
+            for gw in range(current_gw - 1, started_gw - 1, -1):
+                picks_data = self.api_client.get_user_picks(user_id, gw)
+                if picks_data.get("picks"):
+                    used_gw = gw
+                    break
+
+        print(f"  Loaded squad from GW{used_gw} ({len(picks_data.get('picks', []))} picks)")
 
         picks = []
         for pick in picks_data.get("picks", []):
