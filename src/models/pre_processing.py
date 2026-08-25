@@ -173,14 +173,14 @@ class PlayerAttributes(BaseModel):
     penalties_order: Optional[int]
 
     # --- Rankings ---
-    influence_rank: int
-    influence_rank_type: int
-    creativity_rank: int
-    creativity_rank_type: int
-    threat_rank: int
-    threat_rank_type: int
-    ict_index_rank: int
-    ict_index_rank_type: int
+    influence_rank: Optional[int]
+    influence_rank_type: Optional[int]
+    creativity_rank: Optional[int]
+    creativity_rank_type: Optional[int]
+    threat_rank: Optional[int]
+    threat_rank_type: Optional[int]
+    ict_index_rank: Optional[int]
+    ict_index_rank_type: Optional[int]
 
     # --- Per 90 stats ---
     expected_goals_per_90: float
@@ -191,14 +191,14 @@ class PlayerAttributes(BaseModel):
     goals_conceded_per_90: float
 
     # --- Value / selection ranks ---
-    now_cost_rank: int
-    now_cost_rank_type: int
-    form_rank: int
-    form_rank_type: int
-    points_per_game_rank: int
-    points_per_game_rank_type: int
-    selected_rank: int
-    selected_rank_type: int
+    now_cost_rank: Optional[int]
+    now_cost_rank_type: Optional[int]
+    form_rank: Optional[int]
+    form_rank_type: Optional[int]
+    points_per_game_rank: Optional[int]
+    points_per_game_rank_type: Optional[int]
+    selected_rank: Optional[int]
+    selected_rank_type: Optional[int]
 
     # --- Derived per 90 ---
     starts_per_90: float

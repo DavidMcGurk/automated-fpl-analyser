@@ -1,10 +1,12 @@
 from functools import cache
+from concurrent.futures import ThreadPoolExecutor
 
 from httpx import Client
 from src.models.post_prediction import Position
 from src.models.errors import SeasonEndedError
 
 API_URL = "https://fantasy.premierleague.com/api"
+MAX_WORKERS = 16
 
 
 class ApiClient:
@@ -30,6 +32,19 @@ class ApiClient:
 
     def get_player_info(self, player_id: int) -> dict:
         return self.client.get(f"{API_URL}/element-summary/{player_id}/").json()
+
+    def get_player_info_batch(self, player_ids: list[int]) -> dict[int, dict]:
+        """Fetch player info for multiple IDs concurrently.
+
+        Returns a dict mapping player_id -> player info dict.
+        """
+        results: dict[int, dict] = {}
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futures = {executor.submit(self.get_player_info, pid): pid for pid in player_ids}
+            for future in futures:
+                pid = futures[future]
+                results[pid] = future.result()
+        return results
 
     def get_user_summary(self, user_id: int) -> dict:
         return self.client.get(f"{API_URL}/entry/{user_id}/").json()

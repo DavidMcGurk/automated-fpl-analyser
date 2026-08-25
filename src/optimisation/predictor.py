@@ -20,18 +20,23 @@ class Predictor:
 
         season = self._derive_season_name(general_info)
 
+        # Fetch all player details concurrently
+        all_elements = general_info["elements"]
+        player_ids = [e["id"] for e in all_elements]
+        player_info_map = self.api_client.get_player_info_batch(player_ids)
+
         # Accumulate features and training examples per position
         features_by_position: dict[Position, list[dict]] = {p: [] for p in Position}
         training_by_position: dict[Position, list[dict]] = {p: [] for p in Position}
 
-        for i in range(1, num_players + 1):
-            player_element = general_info["elements"][i - 1]
+        for player_element in all_elements:
+            player_id = player_element["id"]
             position = self.api_client.get_player_position(player_element)
-            data = self.api_client.get_player_info(player_id=i)
+            data = player_info_map[player_id]
             attributes = PlayerAttributes(**player_element)
 
             raw_player = RawPlayer(
-                player_id=i,
+                player_id=player_id,
                 position=position,
                 attributes=attributes,
                 **data,
@@ -83,8 +88,11 @@ class Predictor:
         gp.train()
         gp.predict()
 
-    def optimise_team(self, user_id: int, max_transfers: int = 2) -> None:
-        """Optimise a user's team by suggesting transfers that maximise xP."""
+    def optimise_team(self, user_id: int, max_transfers: int = 2):
+        """Optimise a user's team by suggesting transfers that maximise xP.
+
+        Returns the OptimisationResult (also prints a summary to stdout).
+        """
         from src.optimisation.team_optimiser import TeamOptimiser
 
         optimiser = TeamOptimiser(store=self.store)
@@ -108,3 +116,5 @@ class Predictor:
             print("\nNo beneficial transfers found.")
 
         print(f"{'=' * 60}")
+
+        return result

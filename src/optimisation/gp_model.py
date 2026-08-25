@@ -38,11 +38,11 @@ FEATURE_MODELS = {
 
 EXCLUDE_FEATURES = {"player_id"}
 
-TRAINING_EPOCHS = 100
+TRAINING_EPOCHS = 50
 LEARNING_RATE = 0.05
 MAX_TRAIN_SAMPLES = 2000
-NUM_INDUCING_POINTS = 500
-BATCH_SIZE = 256
+NUM_INDUCING_POINTS = 200
+BATCH_SIZE = 512
 
 KERNELS = {
     "rbf": gpytorch.kernels.RBFKernel,
@@ -369,7 +369,7 @@ class GPModel:
         self.likelihoods[position] = likelihood
 
     def _predict_position(self, position: Position, features: list[dict]) -> list[dict]:
-        """Predict xP for all players at a given position."""
+        """Predict xP for all players at a given position (batched)."""
         model = self.models[position]
         likelihood = self.likelihoods[position]
         columns = self.feature_columns[position]
@@ -378,26 +378,30 @@ class GPModel:
         t_mean = self.target_means[position]
         t_std = self.target_stds[position]
 
-        predictions = []
+        player_ids = []
+        rows = []
 
         for features_dict in features:
-            player_id = features_dict.get("player_id")
+            player_ids.append(features_dict.get("player_id"))
 
             row = []
             for col in columns:
                 val = features_dict.get(col)
                 row.append(0.0 if val is None else float(val))
+            rows.append(row)
 
-            x = torch.tensor([row], dtype=torch.float32)
-            x = (x - feat_mean) / feat_std
+        x = torch.tensor(rows, dtype=torch.float32)
+        x = (x - feat_mean) / feat_std
 
-            with torch.no_grad(), gpytorch.settings.fast_pred_var():
-                pred_dist = likelihood(model(x))
-                pred_mean = pred_dist.mean.item()
-                variance = pred_dist.variance.item()
+        with torch.no_grad(), gpytorch.settings.fast_pred_var():
+            pred_dist = likelihood(model(x))
+            pred_means = pred_dist.mean
+            variances = pred_dist.variance
 
-            # Denormalize prediction
-            pred_mean = pred_mean * t_std + t_mean
+        predictions = []
+        for i, player_id in enumerate(player_ids):
+            pred_mean = pred_means[i].item() * t_std + t_mean
+            variance = variances[i].item()
 
             predictions.append(
                 {
