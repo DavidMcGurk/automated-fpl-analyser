@@ -2,7 +2,8 @@ name: FPL Weekly Automation
 
 on:
   schedule:
-    - cron: "0 12 * * 5"  # Friday 12:00 UTC
+    - cron: "0 7 * * 2"  # Tuesday 07:00 UTC (post-GW check)
+    - cron: "0 12 * * 5"  # Friday 12:00 UTC (pre-GW)
   workflow_dispatch:
     inputs:
       fpl_user_id:
@@ -13,6 +14,10 @@ on:
         description: "Email address to send results to (leave blank to use the default from secrets)"
         required: false
         default: ""
+      skip_fixture_check:
+        description: "Skip the post-GW fixture check (force send even if matches are unfinished)"
+        required: false
+        default: "false"
 
 jobs:
   run-automation:
@@ -36,7 +41,15 @@ jobs:
           uv sync
           uv pip install -e .
 
+      - name: Check fixtures finished (Tuesday post-GW runs only)
+        if: github.event.schedule == '0 7 * * 2'
+        env:
+          SKIP_FIXTURE_CHECK: ${{ github.event.inputs.skip_fixture_check || 'false' }}
+        run: |
+          uv run python bin/check_fixtures.py
+
       - name: Run model
+        if: ${{ !cancelled() }}
         env:
           FPL_USER_ID: ${{ github.event.inputs.fpl_user_id || secrets.FPL_USER_ID }}
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
@@ -46,6 +59,7 @@ jobs:
           uv run python bin/run.py
 
       - name: Send email
+        if: ${{ !cancelled() }}
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           EMAIL_ADDRESS: ${{ github.event.inputs.email_address || secrets.EMAIL_ADDRESS }}

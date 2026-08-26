@@ -86,6 +86,12 @@ class TeamOptimiser:
 
         print(f"  Loaded squad from GW{used_gw} ({len(picks_data.get('picks', []))} picks)")
 
+        # Determine free transfers remaining for the current gameweek.
+        # FPL gives 1 free transfer per GW (2 if none was used the previous GW).
+        # We count transfers already made in the current GW and infer the allowance.
+        free_transfers = self._compute_free_transfers(user_id, current_gw, used_gw)
+        print(f"  Free transfers remaining: {free_transfers}")
+
         picks = []
         for pick in picks_data.get("picks", []):
             element = pick["element"]
@@ -116,7 +122,7 @@ class TeamOptimiser:
         bank = (user_summary.get("last_deadline_bank") or 0) / 10.0
         value = (user_summary.get("last_deadline_value") or 0) / 10.0
 
-        squad = Squad(picks=picks, bank=bank, value=value)
+        squad = Squad(picks=picks, bank=bank, value=value, free_transfers=free_transfers)
 
         # If selling prices weren't in the API data, fall back to current now_cost
         for pick in squad.picks:
@@ -126,6 +132,38 @@ class TeamOptimiser:
                 pick.purchase_price = pick.purchase_price or current_price
 
         return squad
+
+    def _compute_free_transfers(self, user_id: int, current_gw: int, used_gw: int) -> int:
+        """Determine how many free transfers the user has remaining.
+
+        FPL rules:
+        - Each GW you get 1 free transfer.
+        - If you didn't use your free transfer last GW, you carry it over
+          (max 2 free transfers).
+        - Transfers made in the current GW reduce the available free transfers.
+
+        We count transfers already made in the current GW from the transfer
+        history API, then subtract from the allowance (1 or 2).
+        """
+        try:
+            transfers = self.api_client.get_user_transfers(user_id)
+        except Exception as e:
+            print(f"  Warning: could not fetch transfer history ({e}), assuming 1 free transfer")
+            return 1
+
+        # Count transfers made in the current gameweek
+        transfers_this_gw = sum(1 for t in transfers if t.get("event") == current_gw)
+
+        # Determine allowance: 2 if no transfers were made in the previous GW, else 1.
+        # For the very first GW of the season, the allowance is 1.
+        if current_gw <= 1:
+            allowance = 1
+        else:
+            transfers_prev_gw = sum(1 for t in transfers if t.get("event") == current_gw - 1)
+            allowance = 2 if transfers_prev_gw == 0 else 1
+
+        free = max(0, allowance - transfers_this_gw)
+        return free
 
     def get_xp(self, player_id: int) -> float:
         """Get xP for a player, defaulting to 0 if no prediction exists."""
@@ -324,6 +362,8 @@ class TeamOptimiser:
                     xP_gain=round(best_xp_gain, 2),
                     cost_change=round(self.player_prices[best_player_in] - player_out.selling_price, 2),
                     net_xp_improvement=0.0,  # Computed at the end
+                    player_out_price=round(player_out.selling_price, 1),
+                    player_in_price=round(self.player_prices[best_player_in], 1),
                 )
             )
 

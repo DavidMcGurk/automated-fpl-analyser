@@ -74,7 +74,7 @@ def _write_email_content(path: str, user_id: int, result) -> None:
         lines.append("")
         lines.append("Suggested transfers:")
         for s in result.suggestions:
-            lines.append(f"  {s.player_out_name} (ID: {s.player_out}) -> {s.player_in_name} (ID: {s.player_in})")
+            lines.append(f"  {s.player_out_name} (£{s.player_out_price:.1f}m) -> {s.player_in_name} (£{s.player_in_price:.1f}m)")
             lines.append(f"    xP gain: {s.xP_gain:+.2f}, cost change: {s.cost_change:+.2f}")
     else:
         lines.append("")

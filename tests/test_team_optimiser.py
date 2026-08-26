@@ -261,6 +261,7 @@ class TestGetSquadFallback:
             "started_event": 1,
         }
         opt.api_client.get_current_gw.return_value = 2
+        opt.api_client.get_user_transfers.return_value = []
         # GW2 has no picks, GW1 has picks
         opt.api_client.get_user_picks.side_effect = [
             {"picks": []},  # GW2
@@ -279,6 +280,7 @@ class TestGetSquadFallback:
             "started_event": 1,
         }
         opt.api_client.get_current_gw.return_value = 2
+        opt.api_client.get_user_transfers.return_value = []
         opt.api_client.get_user_picks.return_value = {
             "picks": [{"element": 42, "position": 1, "selling_price": 60, "purchase_price": 60}],
         }
@@ -309,6 +311,7 @@ class TestGetSquadPriceFallback:
             "started_event": 1,
         }
         opt.api_client.get_current_gw.return_value = 1
+        opt.api_client.get_user_transfers.return_value = []
         # No selling_price or purchase_price in picks data
         opt.api_client.get_user_picks.return_value = {
             "picks": [{"element": 42, "position": 1, "multiplier": 1}],
@@ -317,3 +320,41 @@ class TestGetSquadPriceFallback:
         squad = opt.get_squad(123)
         assert squad.picks[0].selling_price == 6.5
         assert squad.picks[0].purchase_price == 6.5
+
+
+class TestComputeFreeTransfers:
+    """Tests for free transfer calculation from the FPL transfer history API."""
+
+    def test_first_gw_no_transfers(self):
+        opt = _make_optimiser()
+        opt.api_client.get_user_transfers.return_value = []
+        assert opt._compute_free_transfers(user_id=123, current_gw=1, used_gw=1) == 1
+
+    def test_first_gw_one_transfer_used(self):
+        opt = _make_optimiser()
+        opt.api_client.get_user_transfers.return_value = [{"event": 1}]
+        assert opt._compute_free_transfers(user_id=123, current_gw=1, used_gw=1) == 0
+
+    def test_second_gw_no_transfers_prev_gw(self):
+        """If no transfers were made in the previous GW, allowance is 2."""
+        opt = _make_optimiser()
+        opt.api_client.get_user_transfers.return_value = []
+        assert opt._compute_free_transfers(user_id=123, current_gw=2, used_gw=2) == 2
+
+    def test_second_gw_transfers_prev_gw(self):
+        """If transfers were made in the previous GW, allowance is 1."""
+        opt = _make_optimiser()
+        opt.api_client.get_user_transfers.return_value = [{"event": 1}]
+        assert opt._compute_free_transfers(user_id=123, current_gw=2, used_gw=2) == 1
+
+    def test_second_gw_one_transfer_this_gw_with_carryover(self):
+        """Used 1 of 2 free transfers (carryover from no transfers last GW)."""
+        opt = _make_optimiser()
+        opt.api_client.get_user_transfers.return_value = [{"event": 2}]
+        assert opt._compute_free_transfers(user_id=123, current_gw=2, used_gw=2) == 1
+
+    def test_api_error_defaults_to_one(self):
+        """If the transfer API fails, default to 1 free transfer."""
+        opt = _make_optimiser()
+        opt.api_client.get_user_transfers.side_effect = Exception("API error")
+        assert opt._compute_free_transfers(user_id=123, current_gw=3, used_gw=3) == 1

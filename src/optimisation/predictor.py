@@ -110,7 +110,7 @@ class Predictor:
         if result.suggestions:
             print("\nSuggested transfers:")
             for s in result.suggestions:
-                print(f"  {s.player_out_name} (ID: {s.player_out}) -> " f"{s.player_in_name} (ID: {s.player_in})")
+                print(f"  {s.player_out_name} (£{s.player_out_price:.1f}m) -> " f"{s.player_in_name} (£{s.player_in_price:.1f}m)")
                 print(f"    xP gain: {s.xP_gain:+.2f}, " f"cost change: {s.cost_change:+.2f}")
         else:
             print("\nNo beneficial transfers found.")
