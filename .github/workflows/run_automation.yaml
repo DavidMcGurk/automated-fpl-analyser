@@ -14,10 +14,6 @@ on:
         description: "Email address to send results to (leave blank to use the default from secrets)"
         required: false
         default: ""
-      skip_fixture_check:
-        description: "Skip the post-GW fixture check (force send even if matches are unfinished)"
-        required: false
-        default: "false"
 
 jobs:
   run-automation:
@@ -43,8 +39,6 @@ jobs:
 
       - name: Check fixtures finished (Tuesday post-GW runs only)
         if: github.event.schedule == '0 7 * * 2'
-        env:
-          SKIP_FIXTURE_CHECK: ${{ github.event.inputs.skip_fixture_check || 'false' }}
         run: |
           uv run python bin/check_fixtures.py
 

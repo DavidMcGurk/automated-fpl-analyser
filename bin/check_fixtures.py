@@ -4,22 +4,14 @@ Used by the Tuesday post-GW scheduled run. If any matches in the current
 gameweek are not yet finished (e.g. midweek fixtures still to be played),
 the script exits with a non-zero code so the GitHub Actions workflow skips
 the subsequent run/email steps.
-
-Set SKIP_FIXTURE_CHECK=true to force the run regardless (used by
-manual workflow_dispatch runs).
 """
 
-import os
 import sys
 
 from src.api_client.client import ApiClient
 
 
 def main() -> None:
-    if os.environ.get("SKIP_FIXTURE_CHECK", "false").lower() == "true":
-        print("SKIP_FIXTURE_CHECK is set — skipping fixture check.")
-        return
-
     api = ApiClient()
 
     try:
