@@ -154,9 +154,11 @@ class TeamOptimiser:
         # Count transfers made in the current gameweek
         transfers_this_gw = sum(1 for t in transfers if t.get("event") == current_gw)
 
-        # Determine allowance: 2 if no transfers were made in the previous GW, else 1.
-        # For the very first GW of the season, the allowance is 1.
-        if current_gw <= 1:
+        # Determine allowance:
+        # - GW1: initial squad selection, 1 free transfer
+        # - GW2: 1 free transfer (no carryover from GW1 — GW1 is just squad selection)
+        # - GW3+: 2 if no transfers were made in the previous GW, else 1
+        if current_gw <= 2:
             allowance = 1
         else:
             transfers_prev_gw = sum(1 for t in transfers if t.get("event") == current_gw - 1)

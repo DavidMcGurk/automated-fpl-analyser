@@ -159,12 +159,12 @@ def _build_html_email(result: dict[str, Any]) -> str:
           <tr>
             <td style="padding: 16px 40px 0;">
               <div style="background-color: #f0fff4; border: 1px solid #d4edda; border-radius: 8px; padding: 16px; text-align: center;">
-                <span style="font-size: 16px; font-weight: 600; color: {improvement_color};">
+                <div style="font-size: 16px; font-weight: 600; color: {improvement_color};">
                   Net Improvement: {improvement_sign}{net_improvement:.2f} pts
-                </span>
-                <span style="font-size: 13px; color: #6c757d; margin-left: 12px;">
+                </div>
+                <div style="font-size: 13px; color: #6c757d; margin-top: 4px;">
                   ({transfers_used} transfer{'s' if transfers_used != 1 else ''} used, {point_hit}pt hit)
-                </span>
+                </div>
               </div>
             </td>
           </tr>
