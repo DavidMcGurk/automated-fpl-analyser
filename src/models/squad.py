@@ -35,8 +35,10 @@ class TransferSuggestion(BaseModel):
 
     player_out: int
     player_out_name: str = ""
+    player_out_price: float = 0.0
     player_in: int
     player_in_name: str = ""
+    player_in_price: float = 0.0
     xP_gain: float
     cost_change: float
     net_xp_improvement: float

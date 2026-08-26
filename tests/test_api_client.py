@@ -115,3 +115,29 @@ class TestApiClient:
         for pid in result:
             assert "fixtures" in result[pid]
             assert "history" in result[pid]
+
+    @patch("src.api_client.client.Client")
+    def test_get_user_transfers(self, mock_client_class):
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+        mock_client.get.return_value.json.return_value = [
+            {"element_in": 10, "element_out": 5, "event": 1},
+        ]
+
+        client = ApiClient()
+        result = client.get_user_transfers(12345)
+        assert len(result) == 1
+        assert result[0]["event"] == 1
+
+    @patch("src.api_client.client.Client")
+    def test_get_fixtures(self, mock_client_class):
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+        mock_client.get.return_value.json.return_value = [
+            {"id": 1, "event": 1, "finished": True},
+        ]
+
+        client = ApiClient()
+        result = client.get_fixtures()
+        assert len(result) == 1
+        assert result[0]["finished"] is True

@@ -57,6 +57,21 @@ class TestTransferSuggestion:
         assert s.xP_gain == 2.5
         assert s.player_out_name == ""
         assert s.player_in_name == ""
+        assert s.player_out_price == 0.0
+        assert s.player_in_price == 0.0
+
+    def test_suggestion_with_prices(self):
+        s = TransferSuggestion(
+            player_out=1,
+            player_in=2,
+            xP_gain=2.5,
+            cost_change=-0.5,
+            net_xp_improvement=2.5,
+            player_out_price=5.5,
+            player_in_price=5.0,
+        )
+        assert s.player_out_price == 5.5
+        assert s.player_in_price == 5.0
 
 
 class TestOptimisationResult:

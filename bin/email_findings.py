@@ -111,6 +111,16 @@ def _build_html_email(result: dict[str, Any]) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <style>
+    /* Dark mode overrides: keep header text white on dark purple background */
+    @media (prefers-color-scheme: dark) {{
+      .header-title, .header-sub, .header-id {{
+        color: #ffffff !important;
+      }}
+    }}
+  </style>
 </head>
 <body style="margin: 0; padding: 0; background-color: #f4f4f4; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 24px 0;">
@@ -121,9 +131,9 @@ def _build_html_email(result: dict[str, Any]) -> str:
           <!-- Header -->
           <tr>
             <td style="background: linear-gradient(135deg, #37003c 0%, #53005a 100%); padding: 32px 40px;">
-              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 700;">&#9917; FPL Weekly Recommendations</h1>
-              <p style="margin: 8px 0 0; color: #ffffff; opacity: 0.8; font-size: 14px;">{date_str}</p>
-              <p style="margin: 4px 0 0; color: #ffffff; opacity: 0.6; font-size: 13px;">Team ID: {user_id}</p>
+              <h1 class="header-title" style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 700;">&#9917; FPL Weekly Recommendations</h1>
+              <p class="header-sub" style="margin: 8px 0 0; color: #ffffff; opacity: 0.8; font-size: 14px;">{date_str}</p>
+              <p class="header-id" style="margin: 4px 0 0; color: #ffffff; opacity: 0.6; font-size: 13px;">Team ID: {user_id}</p>
             </td>
           </tr>
 
@@ -133,11 +143,11 @@ def _build_html_email(result: dict[str, Any]) -> str:
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td width="50%" style="padding: 16px; background-color: #f8f9fa; border-radius: 8px; text-align: center;">
-                    <p style="margin: 0; color: #6c757d; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Current Squad xP</p>
+                    <p style="margin: 0; color: #6c757d; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Current Squad <span style="text-transform: lowercase;">x</span>P</p>
                     <p style="margin: 4px 0 0; font-size: 28px; font-weight: 700; color: #37003c;">{current_xp:.2f}</p>
                   </td>
                   <td width="50%" style="padding: 16px; background-color: #f8f9fa; border-radius: 8px; text-align: center;">
-                    <p style="margin: 0; color: #6c757d; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Optimised Squad xP</p>
+                    <p style="margin: 0; color: #6c757d; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Optimised Squad <span style="text-transform: lowercase;">x</span>P</p>
                     <p style="margin: 4px 0 0; font-size: 28px; font-weight: 700; color: #37003c;">{optimised_xp:.2f}</p>
                   </td>
                 </tr>

@@ -52,6 +52,14 @@ class ApiClient:
     def get_user_picks(self, user_id: int, gameweek: int) -> dict:
         return self.client.get(f"{API_URL}/entry/{user_id}/event/{gameweek}/picks/").json()
 
+    def get_user_transfers(self, user_id: int) -> list[dict]:
+        """Fetch the full transfer history for a user."""
+        return self.client.get(f"{API_URL}/entry/{user_id}/transfers/").json()
+
+    def get_fixtures(self) -> list[dict]:
+        """Fetch all fixtures from the FPL API."""
+        return self.client.get(f"{API_URL}/fixtures/").json()
+
     def get_player_position(self, player_element: dict) -> Position:
         element_type = player_element["element_type"]
         return Position(element_type)
